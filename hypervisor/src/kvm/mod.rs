@@ -1322,6 +1322,10 @@ impl hypervisor::Hypervisor for KvmHypervisor {
     fn get_max_vcpus(&self) -> u32 {
         self.kvm.get_max_vcpus().min(u32::MAX as usize) as u32
     }
+
+    fn check_extension_int(&self, capability: kvm_ioctls::Cap) -> i32 {
+        self.kvm.check_extension_int(capability)
+    }
 }
 
 /// Vcpu struct for KVM
@@ -2844,11 +2848,10 @@ impl KvmVcpu {
     /// X86 specific call that returns the vcpu's current "xsave struct".
     ///
     fn get_xsave(&self) -> cpu::Result<XsaveState> {
-        Ok(self
-            .fd
-            .get_xsave()
-            .map_err(|e| cpu::HypervisorCpuError::GetXsaveState(e.into()))?
-            .into())
+        XsaveState::with_initializer(|state|
+            // SAFETY: The `state` is guaranteed to have a valid size
+            unsafe { self.fd.get_xsave2(state) })
+        .map_err(|e| cpu::HypervisorCpuError::GetXsaveState(anyhow::Error::from_boxed(e)))
     }
 
     #[cfg(target_arch = "x86_64")]
@@ -2856,14 +2859,26 @@ impl KvmVcpu {
     /// X86 specific call that sets the vcpu's current "xsave struct".
     ///
     fn set_xsave(&self, xsave: &XsaveState) -> cpu::Result<()> {
-        let xsave: kvm_bindings::kvm_xsave = (*xsave).clone().into();
-        // SAFETY: Here we trust the kernel not to read past the end of the kvm_xsave struct
-        // when calling the kvm-ioctl library function.
-        unsafe {
-            self.fd
-                .set_xsave(&xsave)
-                .map_err(|e| cpu::HypervisorCpuError::SetXsaveState(e.into()))
+        use crate::arch::x86::XSAVE_FAM_LENGTH;
+        // Check that the FAM length hasn't changed since `xsave` was initialized
+        // and ensure that this remains the case for the duration of this call.
+        let required_fam_length = XSAVE_FAM_LENGTH.read().unwrap();
+        let actual_fam_length = xsave.0.as_fam_struct_ref().len;
+        let bytes_per_entry = size_of::<kvm_bindings::__u32>();
+        if *required_fam_length != actual_fam_length {
+            return Err(crate::cpu::HypervisorCpuError::SetXsaveState(anyhow!(
+                "The required xsave struct size has changed since the initialization of the given instance. The absolute difference in bytes is: {}",
+                (*required_fam_length * bytes_per_entry)
+                    .abs_diff(actual_fam_length * bytes_per_entry)
+            )));
         }
+        // SAFETY: We checked that this instance of Xsave has the required size
+        // hence the kernel will read exactly the number of bytes it expects.
+        Ok(unsafe {
+            self.fd
+                .set_xsave2(&xsave.0)
+                .map_err(|e| cpu::HypervisorCpuError::SetXsaveState(e.into()))?
+        })
     }
 
     #[cfg(target_arch = "x86_64")]

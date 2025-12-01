@@ -122,6 +122,9 @@ pub trait Hypervisor: Send + Sync {
     fn check_required_extensions(&self) -> Result<()> {
         Ok(())
     }
+
+    #[cfg(feature = "kvm")]
+    fn check_extension_int(&self, capability: kvm_ioctls::Cap) -> i32;
     #[cfg(target_arch = "aarch64")]
     ///
     /// Retrieve AArch64 host maximum IPA size supported by KVM

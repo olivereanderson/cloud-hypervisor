@@ -789,6 +789,9 @@ impl CpuManager {
 
         #[cfg(target_arch = "x86_64")]
         if config.features.amx {
+            hypervisor::arch::x86::XsaveState::enable_amx_state_components(hypervisor.as_ref())
+                .map_err(|e| crate::cpu::Error::AmxEnable(e.into()))?;
+            /*
             const ARCH_GET_XCOMP_GUEST_PERM: usize = 0x1024;
             const ARCH_REQ_XCOMP_GUEST_PERM: usize = 0x1025;
             const XFEATURE_XTILEDATA: usize = 18;
@@ -821,6 +824,7 @@ impl CpuManager {
             if result != 0 || (mask & XFEATURE_XTILEDATA_MASK) != XFEATURE_XTILEDATA_MASK {
                 return Err(Error::AmxEnable(anyhow!("Guest AMX usage not supported")));
             }
+            */
         }
 
         let proximity_domain_per_cpu: BTreeMap<u32, u32> = {

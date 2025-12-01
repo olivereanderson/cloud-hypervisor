@@ -261,6 +261,11 @@ impl MshvHypervisor {
 /// let vm = hypervisor.create_vm(HypervisorVmConfig::default()).expect("new VM fd creation failed");
 /// ```
 impl hypervisor::Hypervisor for MshvHypervisor {
+    #[cfg(feature = "kvm")]
+    fn check_extension_int(&self, _capability: kvm_ioctls::Cap) -> i32 {
+        unimplemented!()
+    }
+
     ///
     /// Returns the type of the hypervisor
     ///

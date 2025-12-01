@@ -980,6 +980,26 @@ impl Vmm {
             })?;
 
         #[cfg(all(feature = "kvm", target_arch = "x86_64"))]
+        {
+            // If AMX is configured we need to enable AMX related state components for guests
+            let amx = {
+                vm_migration_config
+                    .vm_config
+                    .lock()
+                    .unwrap()
+                    .cpus
+                    .features
+                    .amx
+            };
+            if amx {
+                hypervisor::arch::x86::XsaveState::enable_amx_state_components(
+                    self.hypervisor.as_ref(),
+                )
+                .map_err(|e| MigratableError::MigrateReceive(e.into()))?;
+            }
+        }
+
+        #[cfg(all(feature = "kvm", target_arch = "x86_64"))]
         self.vm_check_cpuid_compatibility(
             &vm_migration_config.vm_config,
             &vm_migration_config.common_cpuid,
