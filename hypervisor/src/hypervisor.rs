@@ -1,3 +1,4 @@
+use std::any::Any;
 // Copyright © 2019 Intel Corporation
 //
 // SPDX-License-Identifier: Apache-2.0 OR BSD-3-Clause
@@ -108,7 +109,7 @@ pub type Result<T> = std::result::Result<T, HypervisorError>;
 ///
 /// This crate provides a hypervisor-agnostic interfaces
 ///
-pub trait Hypervisor: Send + Sync {
+pub trait Hypervisor: Send + Sync + Any {
     ///
     /// Returns the type of the hypervisor
     ///

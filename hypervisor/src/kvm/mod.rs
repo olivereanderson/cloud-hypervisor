@@ -1118,7 +1118,7 @@ fn tdx_command(
 
 /// Wrapper over KVM system ioctls.
 pub struct KvmHypervisor {
-    kvm: Kvm,
+    pub kvm: Kvm,
 }
 
 impl KvmHypervisor {

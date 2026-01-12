@@ -22,7 +22,9 @@ mod mpspec;
 mod mptable;
 mod smbios;
 
+use std::any::Any;
 use std::arch::x86_64;
+use std::collections::HashSet;
 use std::mem;
 
 use hypervisor::arch::x86::{CPUID_FLAG_VALID_INDEX, CpuIdEntry};
@@ -644,6 +646,36 @@ pub fn generate_common_cpuid(
     hypervisor: &dyn hypervisor::Hypervisor,
     config: &CpuidConfig,
 ) -> super::Result<Vec<CpuIdEntry>> {
+    let h = hypervisor as &dyn Any;
+    let kvm: Option<&hypervisor::kvm::KvmHypervisor> = h.downcast_ref();
+    let kvm = &kvm.unwrap().kvm;
+    let msr_indices = kvm.get_msr_index_list().unwrap();
+    let num_msrs = msr_indices.as_slice().len();
+    let msr_indices = msr_indices
+        .as_slice()
+        .iter()
+        .copied()
+        .collect::<HashSet<_>>();
+    dbg!(num_msrs);
+    let msr_features = kvm.get_msr_feature_index_list().unwrap();
+    let num_msr_features = msr_features.as_slice().len();
+    dbg!(num_msr_features);
+    let msr_feature_indices = msr_features
+        .as_slice()
+        .iter()
+        .copied()
+        .collect::<HashSet<_>>();
+    let intersection = msr_feature_indices.intersection(&msr_indices);
+    for idx in intersection {
+        println!("{idx:#010x} in intersection");
+    }
+    if msr_indices.contains(&0xcf) {
+        println!("msr_indices contains IA32_CORE_CAPABILITIES");
+    }
+    if msr_feature_indices.contains(&0xcf) {
+        println!("msr_feature_indices contains IA32_CORE_CAPABILITIES");
+    }
+
     // SAFETY: cpuid called with valid leaves
     if unsafe { x86_64::__cpuid(1) }.ecx & (1 << HYPERVISOR_ECX_BIT) == 1 << HYPERVISOR_ECX_BIT {
         // SAFETY: cpuid called with valid leaves
