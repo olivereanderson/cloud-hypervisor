@@ -656,19 +656,23 @@ pub fn generate_common_cpuid(
         .iter()
         .copied()
         .collect::<HashSet<_>>();
-    dbg!(num_msrs);
+    println!("num msr indices:={num_msrs}");
     let msr_features = kvm.get_msr_feature_index_list().unwrap();
     let num_msr_features = msr_features.as_slice().len();
-    dbg!(num_msr_features);
+    println!("num msr-based features:={num_msr_features}");
     let msr_feature_indices = msr_features
         .as_slice()
         .iter()
         .copied()
         .collect::<HashSet<_>>();
     let intersection = msr_feature_indices.intersection(&msr_indices);
+    let mut intersection_len = 0;
     for idx in intersection {
+        intersection_len += 1;
         println!("{idx:#010x} in intersection");
     }
+    println!("intersection length:={intersection_len}");
+
     if msr_indices.contains(&0xcf) {
         println!("msr_indices contains IA32_CORE_CAPABILITIES");
     }
