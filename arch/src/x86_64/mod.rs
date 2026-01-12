@@ -676,6 +676,7 @@ pub fn generate_common_cpuid(
         println!("msr_feature_indices contains IA32_CORE_CAPABILITIES");
     }
 
+    panic!();
     // SAFETY: cpuid called with valid leaves
     if unsafe { x86_64::__cpuid(1) }.ecx & (1 << HYPERVISOR_ECX_BIT) == 1 << HYPERVISOR_ECX_BIT {
         // SAFETY: cpuid called with valid leaves
