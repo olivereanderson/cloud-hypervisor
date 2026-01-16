@@ -90,3 +90,5 @@ impl<const NUM: usize> MsrDefinitions<NUM> {
         &self.0
     }
 }
+
+pub(in crate::x86_64) struct FeatureMsrCompatibilityError;

@@ -3,8 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use std::collections::HashMap;
+
+use log::{debug, error, warn};
+
 use crate::x86_64::msr_definitions::{
-    MsrDefinitions, ProfilePolicy, RegisterAddress, ValueDefinition, ValueDefinitions,
+    FeatureMsrCompatibilityError, MsrDefinitions, ProfilePolicy, RegisterAddress, ValueDefinition,
+    ValueDefinitions,
 };
 
 impl RegisterAddress {
@@ -3679,5 +3684,803 @@ pub(in crate::x86_64) const fn msr_definitions<const REG_ADDR: u32>() -> &'stati
             panic!("MSR definition not found");
         }
         out
+    }
+}
+
+/// Check that the `src_feature_msrs` are compatible with those given in `dest_feature_msrs`.
+///
+/// If this check fails, then software that works under the `src_feature_msrs`, may no longer
+/// behave correctly with `dest_feature_msrs`.
+///
+/// The `src_id` and `dest_id` strings are only used for logging purposes to identify what
+/// is being compared (e.g. CPU profile vs host where the profile should be applied, etc).
+///
+/// NOTE: This function assumes CPUID compatibility.
+///
+/// All register addresses/keys in [`INTEL_MSR_FEATURE_DEFINITIONS`] are checked, except for:
+/// - IA32_BIOS_SIGN_ID,
+/// - IA32_PERF_CAPABILITIES,
+/// - MSR_PLATFORM_INFO
+///
+/// IA32_PERF_CAPABILITIES are inherently incompatible between different VMs and we do not
+/// think it makes much sense to compare IA32_BIOS_SIGN_ID or MSR_PLATFORM_INFO in this context.
+pub(in crate::x86_64) fn check_feature_msr_compatibility(
+    src_feature_msrs: &HashMap<u32, u64>,
+    dest_feature_msrs: &HashMap<u32, u64>,
+    src_id: &str,
+    dest_id: &str,
+) -> Result<(), FeatureMsrCompatibilityError> {
+    let mut is_err = false;
+    // First check IA32_ARCH_CAPABILITIES
+    // Since we are assuming CPUID to be compatible we
+    // may assume that either both src and dest have this
+    // MSR or none of them do
+    if let Some((src_val, dest_val)) = src_feature_msrs
+        .get(&RegisterAddress::IA32_ARCH_CAPABILITIES.0)
+        .zip(dest_feature_msrs.get(&RegisterAddress::IA32_ARCH_CAPABILITIES.0))
+    {
+        is_err |=
+            check_arch_capabilities_compatibility(*src_val, *dest_val, src_id, dest_id).is_err();
+    }
+
+    // Next let us consider IA32_VMX_BASIC
+    let mut true_ctls_exist_src = false;
+    let mut true_ctls_exist_dest = false;
+    // Since we assume compatibility of CPUID we can again check that either both src and dest
+    // have the IA32_VMX_BASIC MSR or none of them do
+    if let Some((src_val, dest_val)) = src_feature_msrs
+        .get(&RegisterAddress::IA32_VMX_BASIC.0)
+        .zip(dest_feature_msrs.get(&RegisterAddress::IA32_VMX_BASIC.0))
+    {
+        true_ctls_exist_src = (*src_val & (1 << 55)) != 0;
+        true_ctls_exist_dest = (*dest_val & (1 << 55)) != 0;
+        is_err |= check_vmx_basic_compatibility(*src_val, *dest_val, src_id, dest_id).is_err();
+    }
+    // The following closure saves us some boiler plate when checking the various VMX CTLS that have a default1 class
+    let check_vmx_ctls_with_default1_class = |vmx_ctrl_reg_address: RegisterAddress,
+                                              vmx_true_ctrl_reg_address: RegisterAddress,
+                                              check_id: &str,
+                                              src_id: &str,
+                                              dest_id: &str|
+     -> Result<(), ()> {
+        let mut is_err = false;
+        let src_reg_address = {
+            conditional_select(
+                vmx_ctrl_reg_address.0,
+                vmx_true_ctrl_reg_address.0,
+                true_ctls_exist_src,
+            )
+        };
+
+        let dest_reg_address = {
+            conditional_select(
+                vmx_ctrl_reg_address.0,
+                vmx_true_ctrl_reg_address.0,
+                true_ctls_exist_dest,
+            )
+        };
+
+        let src_val = src_feature_msrs.get(&src_reg_address);
+        let dest_val = dest_feature_msrs.get(&dest_reg_address);
+        if src_val.is_some() && dest_val.is_none() {
+            error!(
+                "{} compatibility check failed: unable to compare value of MSR {:#x} of {} with value of MSR {:#x} of {}, because the latter value was not found",
+                check_id, src_reg_address, src_id, dest_reg_address, dest_id
+            );
+            is_err = true;
+        }
+        if let Some((src_val, dest_val)) = src_val.zip(dest_val) {
+            if let Err(CtlsCheck {
+                bitset_only_zero_src_lo,
+                bitset_only_one_src_hi,
+            }) = check_negative_subset_lo_and_subset_hi(*src_val, *dest_val)
+            {
+                is_err = true;
+                if let Some(bitset) = bitset_only_zero_src_lo {
+                    for_each_bitpos(bitset, |bit_pos| {
+                        debug!(
+                            "{} compatibility check failed: bit {} is 0 in MSR:={:#x} of {}, but 1 in MSR:={:#x} of {}",
+                            check_id, bit_pos, src_reg_address, src_id, dest_reg_address, dest_id
+                        )
+                    });
+                }
+
+                if let Some(bitset) = bitset_only_one_src_hi {
+                    for_each_bitpos(bitset, |bit_pos| {
+                        debug!(
+                            "{} compatibility check failed: bit {} is 1 in MSR:={:#x} of {}, but 0 in MSR:={:#x} of {}",
+                            check_id, bit_pos, src_reg_address, src_id, dest_reg_address, dest_id
+                        )
+                    });
+                }
+            }
+        }
+
+        if is_err {
+            if let Some(src_val) = src_val
+                && let Some(dest_val) = dest_val
+            {
+                error!(
+                    "{} compatibility check failed: {} register address:={:#x}, {} value:={:#x}, {} register address:={:#x}, {} value:={:#x}",
+                    check_id,
+                    src_id,
+                    src_reg_address,
+                    src_id,
+                    *src_val,
+                    dest_id,
+                    dest_reg_address,
+                    dest_id,
+                    *dest_val
+                );
+            }
+            Err(())
+        } else {
+            Ok(())
+        }
+    };
+
+    // Now we consider IA32_VMX_PINBASED_CTLS and/or IA32_VMX_TRUE_BINBASED_CTLS
+    // (Intel SDM Vol.3D A.3.1)
+    is_err |= check_vmx_ctls_with_default1_class(
+        RegisterAddress::IA32_VMX_PINBASED_CTLS,
+        RegisterAddress::IA32_VMX_TRUE_PINBASED_CTLS,
+        "IA32_VMX_PINBASED_CTLS",
+        src_id,
+        dest_id,
+    )
+    .is_err();
+
+    // Next up is IA32_VMX_PROCBASED_CTLS and/or IA32_VMX_TRUE_PROCBASED_CTLS
+    // (Intel SDM Vol.3D A.3.2.)
+    is_err |= check_vmx_ctls_with_default1_class(
+        RegisterAddress::IA32_VMX_PROCBASED_CTLS,
+        RegisterAddress::IA32_VMX_TRUE_PROCBASED_CTLS,
+        "IA32_PROCBASED_CTLS",
+        src_id,
+        dest_id,
+    )
+    .is_err();
+    // Check IA32_VMX_EXIT_CTLS and/or IA32_VMX_TRUE_EXIT_CTLS
+    // (Intel SDM Vol.3D A.4)
+    is_err |= check_vmx_ctls_with_default1_class(
+        RegisterAddress::IA32_VMX_EXIT_CTLS,
+        RegisterAddress::IA32_VMX_TRUE_EXIT_CTLS,
+        "IA32_VMX_EXIT_CTLS",
+        src_id,
+        dest_id,
+    )
+    .is_err();
+    // Check IA32_VMX_ENTRY_CTLS and/or IA32_VMX_TRUE_ENTRY_CTLS
+    // (Intel SDM Vol.3D A.5)
+    is_err |= check_vmx_ctls_with_default1_class(
+        RegisterAddress::IA32_VMX_ENTRY_CTLS,
+        RegisterAddress::IA32_VMX_TRUE_ENTRY_CTLS,
+        "IA32_VMX_ENTRY_CTLS",
+        src_id,
+        dest_id,
+    )
+    .is_err();
+    // Check IA32_VMX_MISC
+    if let Some((src_val, dest_val)) = src_feature_msrs
+        .get(&RegisterAddress::IA32_VMX_MISC.0)
+        .zip(dest_feature_msrs.get(&RegisterAddress::IA32_VMX_MISC.0))
+    {
+        is_err |= check_vmx_misc_msr(*src_val, *dest_val, src_id, dest_id).is_err();
+    }
+    // Check IA32_VMX_CR0_FIXED0 and IA32_VMX_CR0_FIXED1
+    // These depend on the same CPUID value hence we can assume that they either all exist or
+    // none of them do
+    if let Some((src_fixed0, dest_fixed0)) = src_feature_msrs
+        .get(&RegisterAddress::IA32_VMX_CR0_FIXED0.0)
+        .zip(dest_feature_msrs.get(&RegisterAddress::IA32_VMX_CR0_FIXED0.0))
+        && let Some((src_fixed1, dest_fixed1)) = src_feature_msrs
+            .get(&RegisterAddress::IA32_VMX_CR0_FIXED1.0)
+            .zip(dest_feature_msrs.get(&RegisterAddress::IA32_VMX_CR0_FIXED1.0))
+    {
+        is_err |= check_cr_i_compatibility::<0>(
+            *src_fixed0,
+            *src_fixed1,
+            *dest_fixed0,
+            *dest_fixed1,
+            src_id,
+            dest_id,
+        )
+        .is_err();
+    }
+
+    // Check IA32_VMX_CR4_FIXED0 and IA32_VMX_CR4_FIXED1
+    // These depend on the same CPUID value hence we can assume that they either all exist or
+    // none of them do
+    if let Some((src_fixed0, dest_fixed0)) = src_feature_msrs
+        .get(&RegisterAddress::IA32_VMX_CR4_FIXED0.0)
+        .zip(dest_feature_msrs.get(&RegisterAddress::IA32_VMX_CR4_FIXED0.0))
+        && let Some((src_fixed1, dest_fixed1)) = src_feature_msrs
+            .get(&RegisterAddress::IA32_VMX_CR4_FIXED1.0)
+            .zip(dest_feature_msrs.get(&RegisterAddress::IA32_VMX_CR4_FIXED1.0))
+    {
+        is_err |= check_cr_i_compatibility::<4>(
+            *src_fixed0,
+            *src_fixed1,
+            *dest_fixed0,
+            *dest_fixed1,
+            src_id,
+            dest_id,
+        )
+        .is_err();
+    }
+
+    // Check IA32_VMX_VMCS_ENUM
+    if let Some((src_val, dest_val)) = src_feature_msrs
+        .get(&RegisterAddress::IA32_VMX_VMCS_ENUM.0)
+        .zip(dest_feature_msrs.get(&RegisterAddress::IA32_VMX_VMCS_ENUM.0))
+    {
+        is_err |= check_vmx_vmcs_enum_compatibility(*src_val, *dest_val, src_id, dest_id).is_err();
+    }
+
+    // Check IA32_VMX_PROCBASED_CTLS2
+    // This MSR exists only if bit 63 of IA32_VMX_PROCBASED_CTLS is set
+    // (note that if it is set on src then our IA32_VMX_PROCBASED_CTLS check
+    // ensures that it is also set on dest)
+    if let Some((src_val, dest_val)) = src_feature_msrs
+        .get(&RegisterAddress::IA32_VMX_PROCBASED_CTLS2.0)
+        .zip(dest_feature_msrs.get(&RegisterAddress::IA32_VMX_PROCBASED_CTLS2.0))
+    {
+        let src_val = *src_val;
+        let dest_val = *dest_val;
+        // First verify that the first 32 bits are indeed 0 as documented by Intel, otherwise we have misunderstood the documentation
+        // and we should not continue.
+        let lo_mask = u64::from(u32::MAX);
+        assert_eq!(
+            src_val & lo_mask,
+            0,
+            "BUG: The 32-first bits of the IA32_VMX_PROCBASED_CTLS2 MSR were not zero for src"
+        );
+        assert_eq!(
+            dest_val & lo_mask,
+            0,
+            "BUG: The 32-first bits of the IA32_VMX_PROCBASED_CTLS2 MSR were not zero for dest"
+        );
+        // Note that the 32-first bits are documented to always be 0
+        if let Err(bits_only_in_src) = check_subset(src_val, dest_val) {
+            is_err = true;
+            error!(
+                "IA32_VMX_PROCBASED_CTLS2 compatibility check failed: {} value:={:#x}, {} value:={:#x}",
+                src_id, src_val, dest_id, dest_val
+            );
+            for_each_bitpos(bits_only_in_src, |bit_pos| {
+                debug!(
+                    "IA32_VMX_PROCBASED_CTLS2 check failed: VM entry allows control X:={} to be 1 for {}, but not for {}",
+                    bit_pos, src_id, dest_id
+                )
+            });
+        }
+    }
+
+    // Check IA32_VMX_PROCBASED_CTLS3
+    // This MSR exists only if bit 49 of IA32_VMX_PROCBASED_CTLS is set
+    // (note that if it is set on src then our IA32_VMX_PROCBASED_CTLS check
+    // ensures that it is also set on dest)
+
+    if let Some((src_val, dest_val)) = src_feature_msrs
+        .get(&RegisterAddress::IA32_VMX_PROCBASED_CTLS3.0)
+        .zip(dest_feature_msrs.get(&RegisterAddress::IA32_VMX_PROCBASED_CTLS3.0))
+    {
+        if let Err(bits_only_in_src) = check_subset(*src_val, *dest_val) {
+            is_err = true;
+            error!(
+                "IA32_VMX_PROCBASED_CTLS3 compatibility check failed: {} value:= {:#x}, {} value:={:#x}",
+                src_id, *src_val, dest_id, *dest_val
+            );
+
+            for_each_bitpos(bits_only_in_src, |bit_pos| {
+                debug!(
+                    "IA32_VMX_PROCBASED_CTLS3 compatibility check failed: VM entry allows control X:={} for {}, but not for {}",
+                    bit_pos, src_id, dest_id
+                );
+            });
+        }
+    }
+
+    // Check IA32_VMX_EXIT_CTLS2
+    // This MSR exists only if bit 63 of the IA32_VMX_EXIT_CTLS is set
+    // (note that if it is set on src then our IA32_VMX_EXIT_CTLS check
+    // ensures that it is also set on dest)
+    if let Some((src_val, dest_val)) = src_feature_msrs
+        .get(&RegisterAddress::IA32_VMX_EXIT_CTLS2.0)
+        .zip(dest_feature_msrs.get(&RegisterAddress::IA32_VMX_EXIT_CTLS2.0))
+    {
+        if let Err(bits_only_in_src) = check_subset(*src_val, *dest_val) {
+            is_err = true;
+            error!(
+                "IA32_VMX_EXIT_CTLS2 compatibility check failed: {} value:={:#x}, {} value:={:#x}",
+                src_id, *src_val, dest_id, *dest_val
+            );
+            for_each_bitpos(bits_only_in_src, |bit_pos| {
+                debug!(
+                    "IA32_VMX_EXIT_CTLS2 compatibility check failed: bit {} is set for {}, but not for {}",
+                    bit_pos, src_id, dest_id
+                );
+            });
+        }
+    }
+
+    // Check IA32_VMX_EPT_VPID_CAP (Intel SDM Vol.3D A.10)
+    //
+    // This MSR is only available on processors where bit 63 of IA32_VMX_PROCBASED_CTLS is 1 and that either
+    // have bit 33 of IA32_VMX_PROCBASED_CTLS2 set, or bit 37 of IA32_VMX_PROC_BASED_CTLS2 set. Since we
+    // already check for compatibility of those bits, we may assume that if this MSR is available for src, then
+    // it is also available for dest.
+    if let Some((src_val, dest_val)) = src_feature_msrs
+        .get(&RegisterAddress::IA32_VMX_EPT_VPID_CAP.0)
+        .zip(dest_feature_msrs.get(&RegisterAddress::IA32_VMX_EPT_VPID_CAP.0))
+    {
+        is_err |= check_vpid_and_ept_capabilities(*src_val, *dest_val, src_id, dest_id).is_err();
+    }
+
+    if let Some((src_val, dest_val)) = src_feature_msrs
+        .get(&RegisterAddress::IA32_VMX_VMFUNC.0)
+        .zip(dest_feature_msrs.get(&RegisterAddress::IA32_VMX_VMFUNC.0))
+    {
+        if let Err(bits_only_in_src) = check_subset(*src_val, *dest_val) {
+            is_err = true;
+            error!(
+                "IA32_VMX_VMFUNC compatibility check failed: {} value:={:#x}, {} value:={:#x}",
+                src_id, *src_val, dest_id, *dest_val
+            );
+            for_each_bitpos(bits_only_in_src, |bit_pos| {
+                debug!(
+                    "IA32_VMX_VMFUNC compatibility check failed: VM entry allows bit X:={} of the VM-function controls to be 1 for {}, but not for {}",
+                    bit_pos, src_id, dest_id
+                );
+            });
+        }
+    }
+
+    if is_err {
+        Err(FeatureMsrCompatibilityError)
+    } else {
+        Ok(())
+    }
+}
+
+/// `a` if `condition` else `b`
+fn conditional_select(a: u32, b: u32, condition: bool) -> u32 {
+    let a_mask = u32::from(condition).wrapping_neg();
+    let b_mask = !a_mask;
+    (a & a_mask) | (b & b_mask)
+}
+
+/// Check that the values of MSR IA32_ARCH_CAPABILITIES are compatible.
+///
+/// If this check fails then programs that work when the value is `src_val`, may possibly
+/// no longer work if the value is `dest_val`.
+///
+/// See: Ch.2 Table 2-2. IA-32 Architectural MSRs in Intel SDM Vol.4
+fn check_arch_capabilities_compatibility(
+    src_val: u64,
+    dest_val: u64,
+    src_id: &str,
+    dest_id: &str,
+) -> Result<(), ()> {
+    // Make a mask out of
+    const TSX_CONTROL: u64 = 1 << 7;
+    const MCU_CONTROL: u64 = 1 << 9;
+    const MISC_PACKAGE_CTLS: u64 = 1 << 10;
+    const ENERGY_FILTERING_CTL: u64 = 1 << 11;
+    const DOITM: u64 = 1 << 12;
+    const MCU_ENUMERATION: u64 = 1 << 16;
+    const FB_CLEAR: u64 = 1 << 17;
+    const FB_CLEAR_CTRL: u64 = 1 << 18;
+    const XAPIC_DISABLE_STATUS: u64 = 1 << 21;
+    const MCU_EXTENDED_SERVICE: u64 = 1 << 22;
+    const OVERCLOCKING_STATUS: u64 = 1 << 23;
+    const GDS_CTRL: u64 = 1 << 25;
+    // TODO: Should we perhaps ignore checking this (is it too strict)?
+    const RFDS_CLEAR: u64 = 1 << 28;
+    const IGN_UMONITOR_SUPPORT: u64 = 1 << 29;
+    const MON_UMON_MITG_SUPPORT: u64 = 1 << 30;
+    const PBOPT_SUPPORT: u64 = 1 << 32;
+
+    let mask: u64 = {
+        TSX_CONTROL
+            | MCU_CONTROL
+            | MISC_PACKAGE_CTLS
+            | ENERGY_FILTERING_CTL
+            | DOITM
+            | MCU_ENUMERATION
+            | FB_CLEAR
+            | FB_CLEAR_CTRL
+            | XAPIC_DISABLE_STATUS
+            | MCU_EXTENDED_SERVICE
+            | OVERCLOCKING_STATUS
+            | GDS_CTRL
+            | IGN_UMONITOR_SUPPORT
+            | MON_UMON_MITG_SUPPORT
+            | PBOPT_SUPPORT
+            | RFDS_CLEAR
+    };
+    if let Err(only_in_src) = check_subset(src_val & mask, dest_val & mask) {
+        error!(
+            "IA32_ARCH_CAPABILITIES compatibility check failed: {} value:={:#x}, {} value:={:#x}",
+            src_id, src_val, dest_id, dest_val
+        );
+        let definitions = msr_definitions::<{ RegisterAddress::IA32_ARCH_CAPABILITIES.0 }>();
+        log_features_only_in_src(only_in_src, src_id, definitions, "IA32_ARCH_CAPABILITIES");
+        Err(())
+    } else {
+        Ok(())
+    }
+}
+
+/// Check that the values of MSR IA32_VMX_BASIC are compatible.
+///
+/// See Intel SDM Vol.3D A.1 for more information about the IA32_VMX_BASIC MSR
+fn check_vmx_basic_compatibility(
+    src_val: u64,
+    dest_val: u64,
+    src_id: &str,
+    dest_id: &str,
+) -> Result<(), ()> {
+    let mut is_err = false;
+    // All bits between 0 and 53 are expected to be equal (except bit 49)
+    let req_eq_mask: u64 = ((1 << 54) - 1) & (!(1 << 49));
+    let src_req_eq = src_val & req_eq_mask;
+    let dest_req_eq = dest_val & req_eq_mask;
+    if src_req_eq != dest_req_eq {
+        is_err = true;
+        let definitions = msr_definitions::<{ RegisterAddress::IA32_VMX_BASIC.0 }>();
+        log_inequalities(
+            src_req_eq,
+            dest_req_eq,
+            definitions,
+            src_id,
+            dest_id,
+            "IA32_VMX_BASIC compatibility",
+        );
+    }
+    // bits 49, 54, 55, and 56 indicate some form of capability and we need to check
+    // that these bits in the `src_value` are a subset of those in `dest_value`
+    let req_subset_eq_mask: u64 = (1 << 54) | (1 << 55) | (1 << 56) | (1 << 49);
+    let src_val_seq = req_subset_eq_mask & src_val;
+    let dest_val_seq = req_subset_eq_mask & dest_val;
+    is_err |= check_subset(src_val_seq, dest_val_seq).is_err();
+
+    if is_err {
+        error!(
+            "IA32_VMX_BASIC compatibility check failed: {} value:={:#x}, {} value:={:#x}",
+            src_id, src_val, dest_id, dest_val
+        );
+        Err(())
+    } else {
+        Ok(())
+    }
+}
+
+/// Check that no values are only in a
+///
+/// Upon error a bitset is returned with the
+/// bits that are only available in `src_val`
+fn check_subset(src_val: u64, dest_val: u64) -> Result<(), u64> {
+    let only_in_src_val = src_val & (src_val ^ dest_val);
+    if only_in_src_val != 0 {
+        Err(only_in_src_val)
+    } else {
+        Ok(())
+    }
+}
+
+/// Checks the following:
+/// 1. For any X < 32; If bit X of src_val is 0 then  bit X  of dest_val is also 0
+/// 2. For any X >= 32; If bit X of src_val is 1 then bit X of dest_val is also 1
+
+struct CtlsCheck {
+    bitset_only_zero_src_lo: Option<u64>,
+    bitset_only_one_src_hi: Option<u64>,
+}
+
+fn check_negative_subset_lo_and_subset_hi(src_val: u64, dest_val: u64) -> Result<(), CtlsCheck> {
+    let lo_mask = (1_u64 << 32) - 1;
+    let hi_mask = !lo_mask;
+
+    let lo_check = check_subset((!src_val) & lo_mask, (!dest_val) & lo_mask);
+
+    let hi_check = check_subset(src_val & hi_mask, dest_val & hi_mask);
+
+    if lo_check.is_ok() && hi_check.is_ok() {
+        Ok(())
+    } else {
+        Err(CtlsCheck {
+            bitset_only_zero_src_lo: lo_check.err(),
+            bitset_only_one_src_hi: hi_check.err(),
+        })
+    }
+}
+
+/// Check that the values of MSR IA32_VMX_MISC are compatible.
+///
+/// See Intel SDM Vol.3D A.6 for more information about the IA32_VMX_MISC MSR
+fn check_vmx_misc_msr(
+    src_value: u64,
+    dest_value: u64,
+    src_id: &str,
+    dest_id: &str,
+) -> Result<(), ()> {
+    let mut is_err = false;
+    let subset_eq_check_mask: u64 = {
+        (1 << 5)
+            | (1 << 6)
+            | (1 << 7)
+            | (1 << 8)
+            | (1 << 14)
+            | (1 << 15)
+            | (1 << 28)
+            | (1 << 29)
+            | (1 << 30)
+    };
+    if let Err(only_in_src) = check_subset(
+        subset_eq_check_mask & src_value,
+        subset_eq_check_mask & dest_value,
+    ) {
+        is_err = true;
+        let definitions = msr_definitions::<{ RegisterAddress::IA32_VMX_MISC.0 }>();
+        log_features_only_in_src(only_in_src, src_id, definitions, "IA32_VMX_MISC");
+    }
+
+    let eq_mask: u64 = {
+        let num_cr3_mask = (16..=24).fold(0_u64, |acc, next| acc | (1 << next));
+        // TODO: Do we also need to check that the MSEG revisions match?
+        num_cr3_mask
+    };
+
+    let src_req_eq_val = src_value & eq_mask;
+    let dest_req_eq_val = dest_value & eq_mask;
+    if src_req_eq_val != dest_req_eq_val {
+        is_err = true;
+        let definitions = msr_definitions::<{ RegisterAddress::IA32_VMX_MISC.0 }>();
+        log_inequalities(
+            src_req_eq_val,
+            dest_req_eq_val,
+            definitions,
+            src_id,
+            dest_id,
+            "IA32_VMX_MISC",
+        );
+    }
+
+    let leq_mask: u64 = { (25..=27).fold(0_u64, |acc, next| acc | (1 << next)) };
+
+    let src_req_leq = src_value & leq_mask;
+    let dest_req_leq = dest_value & leq_mask;
+    if src_req_leq > dest_req_leq {
+        is_err = true;
+        debug!(
+            "IA32_VMX_MISC compatibility check failed when checking definition: {:?}, {} has value:={}, {} has value:={}",
+            max_msr_store_lists_def(),
+            src_id,
+            src_req_leq,
+            dest_id,
+            dest_req_leq
+        );
+    }
+
+    if is_err {
+        error!(
+            "IA32_VMX_MISC compatibility check failed: {} value:={:#x}, {} value:={:#x}",
+            src_id, src_value, dest_id, dest_value
+        );
+        Err(())
+    } else {
+        Ok(())
+    }
+}
+
+/// Check compatibility of MSRs IA32_VMX_CR{I}_FIXED0 & IA32_VMX_CR{I}_FIXED1 for I = 0, 4.
+///
+/// See Intel SDM Vol.3D A.7 & A.8 for more information about these MSRs.
+fn check_cr_i_compatibility<const I: u8>(
+    src_fixed0: u64,
+    src_fixed1: u64,
+    dest_fixed0: u64,
+    dest_fixed1: u64,
+    src_id: &str,
+    dest_id: &str,
+) -> Result<(), ()> {
+    let cri = const {
+        match I {
+            0 => "CR0",
+            4 => "CR4",
+            _ => {
+                panic!("only 0 and 4 may be used")
+            }
+        }
+    };
+
+    let mut is_err = false;
+    // Need to ensure that there are no bits that are only 0 in src_fixed0 and also no bits
+    // that are only 1 in src_fixed1.
+
+    if let Err(only_zero_in_src) = check_subset(!src_fixed0, !dest_fixed0) {
+        is_err = true;
+        error!(
+            "IA32_VMX_{}_FIXED0 compatibility check failed: {} value:={:#x}, {} value:={:#x}",
+            cri, src_id, src_fixed0, dest_id, dest_fixed0
+        );
+        for_each_bitpos(only_zero_in_src, |bit_pos| {
+            debug!(
+                "IA32_VMX_{}_FIXED0 compatibility check failed: bit {} is allowed to be 0 in {} for {}, but not for {}",
+                cri, bit_pos, cri, src_id, dest_id
+            )
+        });
+    }
+
+    if let Err(only_one_in_src) = check_subset(src_fixed1, dest_fixed1) {
+        is_err = true;
+        error!(
+            "IA32_VMX_{}_FIXED1 compatibility check failed: {} value:={:#x}, {} value:={:#x}",
+            cri, src_id, src_fixed1, dest_id, dest_fixed1
+        );
+        for_each_bitpos(only_one_in_src, |bit_pos| {
+            debug!(
+                "IA32_VMX_{}_FIXED1 compatibility check failed: bit {} is allowed to be 1 in {} for {}, but not for {}",
+                cri, bit_pos, cri, src_id, dest_id
+            )
+        });
+    }
+
+    if is_err { Err(()) } else { Ok(()) }
+}
+
+/// Check compatibility of MSRs IA32_VMX_VMCS_ENUM.
+///
+/// See Intel SDM Vol.3D A.9 for more information about IA32_VMX_VMCS_ENUM.
+fn check_vmx_vmcs_enum_compatibility(
+    src_value: u64,
+    dest_value: u64,
+    src_id: &str,
+    dest_id: &str,
+) -> Result<(), ()> {
+    let mask = (1..=9).fold(0_u64, |acc, next| acc | (1 << next));
+    let src_req_leq = src_value & mask;
+    let dest_req_leq = dest_value & mask;
+    if src_req_leq > dest_req_leq {
+        error!(
+            "VMX_VMCS_ENUM compatibility check failed: MAX_INDEX for {}:={} is greater than MAX_INDEX:={} for {}",
+            src_id, src_req_leq, dest_req_leq, dest_id
+        );
+        Err(())
+    } else {
+        Ok(())
+    }
+}
+
+/// Check compatibility of MSRs IA32_VMX_EPT_VPID_CAP.
+///
+/// See (Intel TODO:) Vol. 3D A.10 for more information about IA32_VMX_EPT_VPID_CAP.
+// Only if IA32_VMX_PROCBASED_CTLS[63] & (IA32_VMX_PROCBASED_CTLS2[33] | IA32_VMX_PROCBASED_CTLS2[37])
+fn check_vpid_and_ept_capabilities(
+    src_value: u64,
+    dest_value: u64,
+    src_id: &str,
+    dest_id: &str,
+) -> Result<(), ()> {
+    let mut is_err = false;
+    let subset_eq_mask = { (1 << 44) - 1 };
+
+    if let Err(bits_only_in_src) =
+        check_subset(src_value & subset_eq_mask, dest_value & subset_eq_mask)
+    {
+        is_err = true;
+        let definitions = msr_definitions::<{ RegisterAddress::IA32_VMX_EPT_VPID_CAP.0 }>();
+        log_features_only_in_src(
+            bits_only_in_src,
+            src_id,
+            definitions,
+            "IA32_VMX_EPT_VPID_CAP",
+        );
+    }
+
+    let leq_mask = { (48..=53).fold(0_u64, |acc, next| acc | (1 << next)) };
+    let src_req_leq = src_value & leq_mask;
+    let dest_req_leq = dest_value & leq_mask;
+    if src_req_leq > dest_req_leq {
+        is_err = true;
+        debug!(
+            "IA32_VMX_EPT_VPID_CAP compatibility check failed: maximum HLAT prefix size is {} for {}, but {} for {}",
+            src_req_leq, src_id, dest_req_leq, dest_id
+        );
+    }
+    if is_err {
+        error!(
+            "IA32_VMX_EPT_VPID_CAP compatibility check failed: {} value:={:#x}, {} value:={:#x}",
+            src_id, src_value, dest_id, dest_value
+        );
+        Err(())
+    } else {
+        Ok(())
+    }
+}
+
+fn for_each_bitpos(bits: u64, mut cb: impl FnMut(u8)) {
+    let mut bits = bits;
+    while bits != 0 {
+        let pos = bits.trailing_zeros() as u8;
+        cb(pos);
+        let lsb = bits & bits.wrapping_neg();
+        bits ^= lsb;
+    }
+}
+
+#[inline(never)]
+#[cold]
+fn log_features_only_in_src(
+    only_in_src: u64,
+    src_id: &str,
+    definitions: &[ValueDefinition],
+    check_id: &str,
+) {
+    for_each_bitpos(only_in_src, |bit_pos| {
+        let Some(def) = definitions
+            .iter()
+            .find(|def| (def.bits_range.0..=def.bits_range.1).contains(&bit_pos))
+        else {
+            debug!(
+                "{} compatibility check failed: bit:={} is only set for {}",
+                check_id, bit_pos, src_id
+            );
+            warn!(
+                "unable to produce proper debug log: No MSR value definition found for bit:={} check:={} compatibility",
+                bit_pos, check_id
+            );
+            return;
+        };
+        debug!(
+            "{} compatibility check failed: feature bit {} only set for {}: feature definition:={:?}",
+            check_id, bit_pos, src_id, def
+        );
+    });
+}
+
+#[inline(never)]
+#[cold]
+fn log_inequalities(
+    src_val: u64,
+    dest_val: u64,
+    definitions: &[ValueDefinition],
+    src_id: &str,
+    dest_id: &str,
+    check_id: &str,
+) {
+    for def in definitions {
+        let mask =
+            (def.bits_range.0..=def.bits_range.1).fold(0_u64, |acc, next| acc | (1_u64 << next));
+        let val_src = mask & src_val;
+        let val_dest = mask & dest_val;
+        if src_val != dest_val {
+            debug!(
+                "Check: {} compatibility failed: on definition:={:?}, values are required to be equal, but we have {} value:={:#x}, {} value:={:#x}",
+                check_id, def, src_id, val_src, dest_id, val_dest
+            );
+        }
+    }
+}
+
+#[inline(never)]
+#[cold]
+const fn max_msr_store_lists_def() -> &'static ValueDefinition {
+    const {
+        let defs = msr_definitions::<{ RegisterAddress::IA32_VMX_MISC.0 }>();
+        // Currently stored at index = 8, if this changes we make sure that we fail at compile time.
+        // We do not perform a search as the order is unlikely to change frequently and we want to keep
+        // compile times down.
+        let def = &defs[8];
+        assert!(
+            def.bits_range.0 == 25,
+            "MAX_MSR_STORE_LISTS definition is no longer at index 8 in the ValueDefinitions corresponding to IA32_VMX_MISC, please update the index"
+        );
+        assert!(
+            def.bits_range.1 == 27,
+            "MAX_MSR_STORE_LISTS definition is no longer at index 8 in the ValueDefinitions corresponding to IA32_VMX_MISC, please update the index"
+        );
+        def
     }
 }
