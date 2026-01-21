@@ -23,6 +23,7 @@ mod mptable;
 mod smbios;
 
 use std::arch::x86_64;
+use std::collections::HashMap;
 use std::mem;
 
 use hypervisor::arch::x86::{CPUID_FLAG_VALID_INDEX, CpuIdEntry};
@@ -40,7 +41,9 @@ use vm_memory::{
     GuestMemoryRegion,
 };
 
-use crate::x86_64::cpu_profile::CpuidOutputRegisterAdjustments;
+use crate::x86_64::cpu_profile::{
+    CpuidOutputRegisterAdjustments, FeatureMsrAdjustment, FeatureMsrUpdate,
+};
 use crate::{CpuProfile, GuestMemoryMmap, InitramfsConfig, RegionType};
 
 // While modern architectures support more than 255 CPUs via x2APIC,
@@ -140,11 +143,18 @@ pub enum Error {
     /// Error getting supported CPUID through the hypervisor (kvm/mshv) API
     #[error("Error getting supported CPUID through the hypervisor API")]
     CpuidGetSupported(#[source] HypervisorError),
-
+    /// Error getting the MSR-based features through the hypervisor (kvm) API
+    #[error("Error getting the MSR-based features through the hypervisor API")]
+    MsrBasedFeaturesGetSupported(#[source] HypervisorError),
     #[error(
         "The selected CPU profile cannot be utilized because the host's CPUID entries are not compatible with the profile"
     )]
     CpuProfileCpuidIncompatibility,
+
+    #[error(
+        "The selected CPU profile cannot be utilized because the host's MSR-based features are not compatible with the profile"
+    )]
+    CpuProfileMsrIncompatibility,
     /// Error because TDX cannot be enabled when a custom (non host) CPU profile has been selected
     #[error("TDX cannot be enabled when a custom CPU profile has been selected")]
     CpuProfileTdxIncompatibility,
@@ -957,6 +967,57 @@ pub fn generate_common_cpuid(
     } else {
         Ok(host_cpuid)
     }
+}
+
+/// This function generates the CPUID entries to be set for all CPUs.
+///
+/// If the given `cpu_profile` is different from [`CpuProfile::Host`] then the profile
+/// will be applied
+pub fn generate_msr_based_features(
+    hypervisor: &dyn hypervisor::Hypervisor,
+    cpu_profile: CpuProfile,
+) -> super::Result<Option<FeatureMsrUpdate>> {
+    let Some(data) = cpu_profile.msr_data() else {
+        return Ok(None);
+    };
+
+    let cpu_vendor_host = hypervisor.get_cpu_vendor();
+    let cpu_vendor_profile = data.cpu_vendor;
+    if cpu_vendor_host != cpu_vendor_profile {
+        return Err(Error::CpuProfileVendorIncompatibility {
+            cpu_vendor_profile,
+            cpu_vendor_host,
+        }
+        .into());
+    }
+
+    let msr_based_features = hypervisor
+        .get_msr_based_features()
+        .map_err(Error::MsrBasedFeaturesGetSupported)?;
+
+    let feature_msr_updates =
+        FeatureMsrAdjustment::adjust_to(&data.adjustments, &msr_based_features)
+            .map_err(|_| Error::CpuProfileMsrIncompatibility)?;
+
+    // TODO: CPU profiles are only available for Intel CPUs at the moment. We need to branch on the vendor
+    // once we also have CPU profiles for AMD.
+    assert!(matches!(cpu_vendor_host, CpuVendor::Intel));
+    crate::x86_64::msr_definitions::intel::check_feature_msr_compatibility(
+        &HashMap::from_iter(
+            feature_msr_updates
+                .msr_based_features
+                .iter()
+                .map(|entry| (entry.index, entry.data)),
+        ),
+        &HashMap::from_iter(
+            msr_based_features
+                .iter()
+                .map(|entry| (entry.index, entry.data)),
+        ),
+    )
+    .map_err(|_| Error::CpuProfileMsrIncompatibility)?;
+
+    Ok(Some(feature_msr_updates))
 }
 
 #[allow(clippy::too_many_arguments)]
