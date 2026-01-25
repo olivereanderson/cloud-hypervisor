@@ -382,6 +382,10 @@ impl hypervisor::Hypervisor for MshvHypervisor {
         Ok(cpuid)
     }
 
+    fn get_msr_based_features(&self) -> hypervisor::Result<Vec<MsrEntry>> {
+        unimplemented!()
+    }
+
     /// Get maximum number of vCPUs
     fn get_max_vcpus(&self) -> u32 {
         // TODO: Using HV_MAXIMUM_PROCESSORS would be better
