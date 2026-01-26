@@ -4,18 +4,20 @@
 //
 use std::fs::File;
 use std::io::Write;
-use std::ops::RangeInclusive;
+use std::ops::{BitOr, RangeInclusive, Shl};
+use std::path::PathBuf;
 
 use anyhow::{Context, anyhow};
-use hypervisor::arch::x86::CpuIdEntry;
+use hypervisor::arch::x86::{CpuIdEntry, MsrEntry};
 use hypervisor::{CpuVendor, Hypervisor, HypervisorError, HypervisorType};
 
-use crate::x86_64::cpu_profile::CpuIdProfileData;
+use crate::x86_64::cpu_profile::{CpuIdProfileData, FeatureMsrAdjustment, MsrProfileData};
 #[cfg(feature = "kvm")]
 use crate::x86_64::cpuid_definitions::CpuidDefinitions;
 use crate::x86_64::cpuid_definitions::intel::INTEL_CPUID_DEFINITIONS;
 use crate::x86_64::cpuid_definitions::kvm::KVM_CPUID_DEFINITIONS;
 use crate::x86_64::cpuid_definitions::{Parameters, ProfilePolicy};
+use crate::x86_64::msr_definitions::{self, MsrDefinitions};
 use crate::x86_64::{CpuidOutputRegisterAdjustments, CpuidReg};
 
 /// Generate CPU profile data and convert it to a string, embeddable as Rust code, which is
@@ -27,6 +29,8 @@ pub fn generate_profile_data(
     hypervisor: &dyn Hypervisor,
     profile_name: &str,
 ) -> anyhow::Result<()> {
+    use crate::x86_64::msr_definitions::intel::INTEL_MSR_FEATURE_DEFINITIONS;
+
     let cpu_vendor = hypervisor.get_cpu_vendor();
     if cpu_vendor != CpuVendor::Intel {
         unimplemented!("CPU profiles can only be generated for Intel CPUs at this point in time");
@@ -48,9 +52,11 @@ pub fn generate_profile_data(
     let Files {
         cpuid_data_file,
         cpuid_data_license_file,
+        msr_data_file,
+        msr_data_license_file,
     } = create_files(profile_name)?;
 
-    generate_cpu_profile_data_with(
+    generate_cpuid_profile_data_with(
         hypervisor_type,
         cpu_vendor,
         &supported_cpuid_sorted,
@@ -58,12 +64,24 @@ pub fn generate_profile_data(
         &KVM_CPUID_DEFINITIONS,
         cpuid_data_file,
         cpuid_data_license_file,
+    )?;
+
+    let supported_feature_msrs = hypervisor.get_msr_based_features().context("CPU profile generation failed: Could not get the supported MSR-based features from the hypervisor")?;
+    generate_feature_msr_profile_data_with(
+        hypervisor_type,
+        cpu_vendor,
+        &supported_feature_msrs,
+        &INTEL_MSR_FEATURE_DEFINITIONS,
+        msr_data_file,
+        msr_data_license_file,
     )
 }
 
 struct Files {
     cpuid_data_file: File,
     cpuid_data_license_file: File,
+    msr_data_file: File,
+    msr_data_license_file: File,
 }
 /// Create empty files with names derived from the name given to the CPU profile.
 /// The name will be lowercase and spaces are replaced with "-".
@@ -79,40 +97,53 @@ fn create_files(profile_name: &str) -> anyhow::Result<Files> {
         name
     };
 
-    let cpuid_profile_file_name = {
-        let mut path = std::env::current_dir().context(
-            "CPU profile generation failed: Unable to get the current working directory",
-        )?;
-        path.push(format!(
-            "arch/src/x86_64/cpu_profiles/{profile_file_name}.cpuid.json"
-        ));
-        path
+    let create_file = |path: PathBuf| {
+        File::create(path.clone()).with_context(|| {
+            format!(
+                "CPU profile generation failed: Could not create file:={}",
+                path.to_string_lossy()
+            )
+        })
     };
 
-    let cpuid_data_file = File::create(cpuid_profile_file_name.clone()).with_context(|| {
-        format!(
-            "CPU profile generation failed: Could not create file:={}",
-            cpuid_profile_file_name.to_string_lossy()
-        )
-    })?;
-
-    let cpuid_data_license_file_path = {
-        let mut path = cpuid_profile_file_name.clone();
+    let path_with_license = |mut path: PathBuf| {
         path.as_mut_os_string().push(".license");
         path
     };
 
-    let cpuid_data_license_file =
-        File::create(cpuid_data_license_file_path.clone()).with_context(|| {
-            format!(
-                "CPU profile generation failed: Could not create file:={}",
-                cpuid_data_license_file_path.to_string_lossy()
-            )
-        })?;
+    let current_dir = std::env::current_dir()
+        .context("CPU profile generation failed: Unable to get the current working directory")?;
+
+    let common_path = format!("arch/src/x86_64/cpu_profiles/{profile_file_name}");
+
+    let cpuid_profile_file_name = {
+        let mut path = current_dir.clone();
+        path.push(format!("{common_path}.cpuid.json"));
+        path
+    };
+
+    let cpuid_data_file = create_file(cpuid_profile_file_name.clone())?;
+
+    let cpuid_data_license_file_path = path_with_license(cpuid_profile_file_name);
+
+    let cpuid_data_license_file = create_file(cpuid_data_license_file_path)?;
+
+    let msr_profile_file_name = {
+        let mut path = current_dir;
+        path.push(format!("{common_path}.msr.json"));
+        path
+    };
+
+    let msr_data_file = create_file(msr_profile_file_name.clone())?;
+
+    let msr_data_license_file_path = path_with_license(msr_profile_file_name);
+    let msr_data_license_file = create_file(msr_data_license_file_path)?;
 
     Ok(Files {
         cpuid_data_file,
         cpuid_data_license_file,
+        msr_data_file,
+        msr_data_license_file,
     })
 }
 
@@ -138,21 +169,21 @@ fn cpu_brand_string_bytes(cpu_vendor: CpuVendor, profile_name: &str) -> anyhow::
     }
     Ok(brand_string_bytes)
 }
-/// Computes [`CpuProfileData`] based on the given sorted vector of CPUID entries, hypervisor type, cpu_vendor
+/// Computes [`CpuIdProfileData`] based on the given sorted vector of CPUID entries, hypervisor type, cpu_vendor
 /// and cpuid_definitions.
 ///
-/// The computed [`CpuProfileData`] is then converted to a string representation, embeddable as Rust code, which is
+/// The computed [`CpuIdProfileData`] is then converted to a string representation, embeddable as Rust code, which is
 /// then written by the given `writer`.
 ///
 // TODO: Consider making a snapshot test or two for this function.
-fn generate_cpu_profile_data_with<const N: usize, const M: usize>(
+fn generate_cpuid_profile_data_with<const N: usize, const M: usize>(
     hypervisor_type: HypervisorType,
     cpu_vendor: CpuVendor,
     supported_cpuid_sorted: &[CpuIdEntry],
     processor_cpuid_definitions: &CpuidDefinitions<N>,
     hypervisor_cpuid_definitions: &CpuidDefinitions<M>,
     mut cpuid_data_file: impl Write,
-    mut cpuid_license_file: impl Write,
+    cpuid_license_file: impl Write,
 ) -> anyhow::Result<()> {
     let mut adjustments: Vec<(Parameters, CpuidOutputRegisterAdjustments)> = Vec::new();
 
@@ -180,7 +211,7 @@ fn generate_cpu_profile_data_with<const N: usize, const M: usize>(
                         // The profile should take whatever we get from the host, hence there is no adjustment, but our
                         // mask needs to retain all bits in the range of bits corresponding to this value
                         let (first_bit_pos, last_bit_pos) = value.bits_range;
-                        mask |= bit_range_mask(first_bit_pos, last_bit_pos);
+                        mask |= bit_range_mask::<u32>(first_bit_pos, last_bit_pos);
                     }
                     ProfilePolicy::Static(overwrite_value) => {
                         replacements |= overwrite_value << value.bits_range.0;
@@ -190,7 +221,8 @@ fn generate_cpu_profile_data_with<const N: usize, const M: usize>(
                         let (first_bit_pos, last_bit_pos) = value.bits_range;
                         if let Some(matching_register_value) = maybe_matching_register_output_value
                         {
-                            let extraction_mask = bit_range_mask(first_bit_pos, last_bit_pos);
+                            let extraction_mask =
+                                bit_range_mask::<u32>(first_bit_pos, last_bit_pos);
                             let value = matching_register_value & extraction_mask;
                             replacements |= value;
                         }
@@ -219,22 +251,94 @@ fn generate_cpu_profile_data_with<const N: usize, const M: usize>(
     cpuid_data_file
         .flush()
         .context("CPU profile generation failed: Unable to flush cpuid profile data")?;
+    write_license_file(cpuid_license_file, "CPUID")
+}
+
+fn generate_feature_msr_profile_data_with<const N: usize>(
+    hypervisor_type: HypervisorType,
+    cpu_vendor: CpuVendor,
+    supported_feature_msrs: &[MsrEntry],
+    processor_feature_msr_definitions: &MsrDefinitions<N>,
+    mut msr_data_file: impl Write,
+    msr_license_file: impl Write,
+) -> anyhow::Result<()> {
+    let mut entries_encountered = 0;
+    let mut adjustments = Vec::new();
+    'table: for (reg_addr, definitions) in processor_feature_msr_definitions.as_slice() {
+        let Some(entry) = supported_feature_msrs
+            .iter()
+            .find(|e| e.index == reg_addr.0)
+        else {
+            continue;
+        };
+        entries_encountered += 1;
+        let value = entry.data;
+        let mut replacements = 0;
+        let mut mask = 0;
+        for msr_definitions::ValueDefinition {
+            policy,
+            bits_range: (first_bit_pos, last_bit_pos),
+            ..
+        } in definitions.as_slice().iter().copied()
+        {
+            match policy {
+                msr_definitions::ProfilePolicy::Deny => {
+                    // This can only be applied to the entire MSR
+                    assert_eq!(first_bit_pos, 0);
+                    assert_eq!(last_bit_pos, 63);
+                    continue 'table;
+                }
+                msr_definitions::ProfilePolicy::Inherit => {
+                    replacements |= value & bit_range_mask::<u64>(first_bit_pos, last_bit_pos);
+                }
+                msr_definitions::ProfilePolicy::Passthrough => {
+                    mask |= bit_range_mask::<u64>(first_bit_pos, last_bit_pos);
+                }
+                msr_definitions::ProfilePolicy::Static(overwrite_value) => {
+                    replacements |= (overwrite_value) << (first_bit_pos);
+                }
+            }
+        }
+        adjustments.push((*reg_addr, FeatureMsrAdjustment { mask, replacements }));
+    }
+
+    if entries_encountered != supported_feature_msrs.len() {
+        let unknown_register_address = supported_feature_msrs.iter().find(|entry| !processor_feature_msr_definitions.as_slice().iter().any(|(reg_addr, _)| reg_addr.0 == entry.index )).expect("We have checked that there should be at least one unknown supported MSR-based feature").index;
+        Err(anyhow!(
+            "CPU profile generation failed: The hardware and hypervisor supports register address:={unknown_register_address}, but the CPU profile generation tool does not know what to do with this MSR. Please update the appropriate `MsrDefinitions` and try again."
+        ))?;
+    }
+
+    let msr_profile_data = MsrProfileData {
+        hypervisor_type,
+        cpu_vendor,
+        adjustments,
+    };
+
+    serde_json::to_writer_pretty(&mut msr_data_file, &msr_profile_data)
+        .context("Cpu profile generation failed: Could not serialize the generated MSR profile data to the given writer")?;
+    msr_data_file
+        .flush()
+        .context("CPU profile generation failed: Unable to flush MSR profile data")?;
+    write_license_file(msr_license_file, "MSR")
+}
+
+fn write_license_file(mut license_file: impl Write, data_type: &str) -> anyhow::Result<()> {
     let license_text = {
         r#"SPDX-FileCopyrightText: 2025 Cyberus Technology GmbH
 
 SPDX-License-Identifier: Apache-2.0 
 "#
     };
-    cpuid_license_file
+    license_file
         .write_all(license_text.as_bytes())
-        .context(
-            "CPU profile generation failed: Unable to write to cpuid profile data license file",
-        )?;
-    cpuid_license_file
-        .flush()
-        .context("CPU profile generation failed: Unable to flush cpuid profile data license file")
+        .with_context(|| {
+            format!("CPU profile generation failed: Unable to write to {data_type} profile data license file")
+        })?;
+    license_file.flush().context(format!(
+        "CPU profile generation failed: Unable to flush {data_type} profile data license file"
+    ))
 }
-
 /// Get as many of the supported CPUID entries from the hypervisor as possible.
 fn supported_cpuid(hypervisor: &dyn Hypervisor) -> anyhow::Result<Vec<CpuIdEntry>> {
     // Check for AMX compatibility. If this is supported we need to call arch_prctl before requesting the supported
@@ -302,11 +406,16 @@ fn sort_entries(mut cpuid: Vec<CpuIdEntry>) -> Vec<CpuIdEntry> {
     });
     cpuid
 }
-/// Returns a `u32` where each bit between `first_bit_pos` and `last_bit_pos` is set (including both ends) and all other bits are 0.
-fn bit_range_mask(first_bit_pos: u8, last_bit_pos: u8) -> u32 {
-    (first_bit_pos..=last_bit_pos).fold(0, |acc, next| acc | (1 << next))
-}
 
+/// Returns a numeric value where each bit between `first_bit_pos` and `last_bit_pos` is set (including both ends) and all other bits are 0.
+fn bit_range_mask<T>(first_bit_pos: u8, last_bit_pos: u8) -> T
+where
+    T: Shl<u8, Output = T>,
+    T: BitOr<Output = T>,
+    T: From<u8>,
+{
+    (first_bit_pos..=last_bit_pos).fold(T::from(0_u8), |acc, next| acc | ((T::from(1_u8)) << next))
+}
 /// Returns a vector of exact parameter matches ((sub_leaf ..= sub_leaf), register_value) interleaved by
 /// the sub_leaf ranges specified by `param` that did not match any cpuid entry.
 fn extract_parameter_matches(
