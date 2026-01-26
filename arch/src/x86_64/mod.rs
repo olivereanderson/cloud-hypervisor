@@ -26,7 +26,7 @@ use std::arch::x86_64;
 use std::collections::HashMap;
 use std::mem;
 
-use hypervisor::arch::x86::{CPUID_FLAG_VALID_INDEX, CpuIdEntry};
+use hypervisor::arch::x86::{CPUID_FLAG_VALID_INDEX, CpuIdEntry, MsrEntry};
 use hypervisor::{CpuVendor, HypervisorCpuError, HypervisorError};
 use linux_loader::loader::bootparam::{boot_params, setup_header};
 use linux_loader::loader::elf::start_info::{
@@ -969,10 +969,10 @@ pub fn generate_common_cpuid(
     }
 }
 
-/// This function generates the CPUID entries to be set for all CPUs.
+/// This function generates the MSR-based feature updates that should be applied to each vCPU.
 ///
 /// If the given `cpu_profile` is different from [`CpuProfile::Host`] then the profile
-/// will be applied
+/// will be applied, otherwise `Ok(None)` will be returned.
 pub fn generate_msr_based_features(
     hypervisor: &dyn hypervisor::Hypervisor,
     cpu_profile: CpuProfile,
@@ -1014,6 +1014,8 @@ pub fn generate_msr_based_features(
                 .iter()
                 .map(|entry| (entry.index, entry.data)),
         ),
+        "CPU Profile",
+        "Host",
     )
     .map_err(|_| Error::CpuProfileMsrIncompatibility)?;
 
@@ -1026,6 +1028,7 @@ pub fn configure_vcpu(
     id: u32,
     boot_setup: Option<(EntryPoint, &GuestMemoryAtomic<GuestMemoryMmap>)>,
     cpuid: Vec<CpuIdEntry>,
+    feature_msrs: &[MsrEntry],
     kvm_hyperv: bool,
     cpu_vendor: CpuVendor,
     topology: (u16, u16, u16, u16),
@@ -1099,7 +1102,7 @@ pub fn configure_vcpu(
         vcpu.enable_hyperv_synic().unwrap();
     }
 
-    regs::setup_msrs(vcpu).map_err(Error::MsrsConfiguration)?;
+    regs::setup_msrs(vcpu, feature_msrs).map_err(Error::MsrsConfiguration)?;
     if let Some((kernel_entry_point, guest_memory)) = boot_setup {
         regs::setup_regs(vcpu, kernel_entry_point).map_err(Error::RegsConfiguration)?;
         regs::setup_fpu(vcpu).map_err(Error::FpuConfiguration)?;

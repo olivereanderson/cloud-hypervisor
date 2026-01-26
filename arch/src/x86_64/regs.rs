@@ -10,7 +10,7 @@ use std::{mem, result};
 
 use hypervisor::arch::x86::gdt::{gdt_entry, segment_from_gdt};
 use hypervisor::arch::x86::regs::CR0_PE;
-use hypervisor::arch::x86::{FpuState, SpecialRegisters};
+use hypervisor::arch::x86::{FpuState, MsrEntry, SpecialRegisters};
 use thiserror::Error;
 use vm_memory::{Address, Bytes, GuestMemory, GuestMemoryError};
 
@@ -81,8 +81,21 @@ pub fn setup_fpu(vcpu: &dyn hypervisor::Vcpu) -> Result<()> {
 /// # Arguments
 ///
 /// * `vcpu` - Structure for the VCPU that holds the VCPU's fd.
-pub fn setup_msrs(vcpu: &dyn hypervisor::Vcpu) -> Result<()> {
-    vcpu.set_msrs(vcpu.boot_msr_entries())
+/// * `feature_msr_updates` - A (possibly empty) slice of MSR-based features
+///   that should be set as as part of the setup. If the slice is empty then
+///   only boot msr entries are set, otherwise the given slice will also be
+///   included in the setup.
+pub fn setup_msrs(vcpu: &dyn hypervisor::Vcpu, feature_msr_updates: &[MsrEntry]) -> Result<()> {
+    let boot_entries = vcpu.boot_msr_entries();
+    let mut entries_for_update = Vec::new();
+    let setup_entries: &mut &[MsrEntry] = &mut (&boot_entries[..]);
+
+    if !feature_msr_updates.is_empty() {
+        entries_for_update.extend_from_slice(feature_msr_updates);
+        entries_for_update.extend_from_slice(boot_entries);
+        *setup_entries = &entries_for_update[..];
+    }
+    vcpu.set_msrs(setup_entries)
         .map_err(Error::SetModelSpecificRegisters)?;
 
     Ok(())

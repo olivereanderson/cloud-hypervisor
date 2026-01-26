@@ -613,15 +613,19 @@ impl Vm {
         .map_err(Error::CpuManager)?;
 
         #[cfg(target_arch = "x86_64")]
-        cpu_manager
-            .lock()
-            .unwrap()
-            .populate_cpuid(
+        {
+            // Populate CPUID and MSR-based features
+            let mut lock = cpu_manager.lock().unwrap();
+            lock.populate_cpuid(
                 hypervisor.as_ref(),
                 #[cfg(feature = "tdx")]
                 tdx_enabled,
             )
             .map_err(Error::CpuManager)?;
+
+            lock.populate_msr_based_features(hypervisor.as_ref())
+                .map_err(Error::CpuManager)?;
+        }
 
         // The initial TDX configuration must be done before the vCPUs are
         // created

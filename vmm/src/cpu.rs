@@ -46,7 +46,7 @@ use hypervisor::arch::aarch64::gic::Vgic;
 use hypervisor::arch::aarch64::regs::{ID_AA64MMFR0_EL1, TCR_EL1, TTBR1_EL1};
 #[cfg(target_arch = "x86_64")]
 use hypervisor::arch::x86::CpuIdEntry;
-#[cfg(all(target_arch = "x86_64", feature = "guest_debug"))]
+#[cfg(target_arch = "x86_64")]
 use hypervisor::arch::x86::MsrEntry;
 #[cfg(all(target_arch = "x86_64", feature = "guest_debug"))]
 use hypervisor::arch::x86::SpecialRegisters;
@@ -141,6 +141,9 @@ pub enum Error {
 
     #[error("Error generating common CPUID")]
     CommonCpuId(#[source] arch::Error),
+
+    #[error("Error generating feature-based MSRs")]
+    FeatureMsrs(#[source] arch::Error),
 
     #[error("Error configuring vCPU")]
     VcpuConfiguration(#[source] arch::Error),
@@ -465,6 +468,7 @@ impl Vcpu {
         #[cfg(target_arch = "aarch64")] vm: &dyn hypervisor::Vm,
         boot_setup: Option<(EntryPoint, &GuestMemoryAtomic<GuestMemoryMmap>)>,
         #[cfg(target_arch = "x86_64")] cpuid: Vec<CpuIdEntry>,
+        #[cfg(target_arch = "x86_64")] feature_msr_updates: &[MsrEntry],
         #[cfg(target_arch = "x86_64")] kvm_hyperv: bool,
         #[cfg(target_arch = "x86_64")] topology: (u16, u16, u16, u16),
         #[cfg(target_arch = "x86_64")] nested: bool,
@@ -485,6 +489,7 @@ impl Vcpu {
             self.id,
             boot_setup,
             cpuid,
+            feature_msr_updates,
             kvm_hyperv,
             self.vendor,
             topology,
@@ -601,6 +606,8 @@ pub struct CpuManager {
     interrupt_controller: Option<Arc<Mutex<dyn InterruptController>>>,
     #[cfg(target_arch = "x86_64")]
     cpuid: Vec<CpuIdEntry>,
+    #[cfg(target_arch = "x86_64")]
+    profile_msr_based_features: Vec<MsrEntry>,
     #[cfg_attr(target_arch = "aarch64", allow(dead_code))]
     vm: Arc<dyn hypervisor::Vm>,
     vcpus_kill_signalled: Arc<AtomicBool>,
@@ -846,6 +853,8 @@ impl CpuManager {
             interrupt_controller: None,
             #[cfg(target_arch = "x86_64")]
             cpuid: Vec::new(),
+            #[cfg(target_arch = "x86_64")]
+            profile_msr_based_features: Vec::new(),
             vm,
             vcpus_kill_signalled: Arc::new(AtomicBool::new(false)),
             vcpus_pause_signalled: Arc::new(AtomicBool::new(false)),
@@ -891,6 +900,31 @@ impl CpuManager {
             .map_err(Error::CommonCpuId)?
         };
 
+        Ok(())
+    }
+
+    /// Prepares common MSR-based feature value updates that will be set when vCPUs are configured.
+    ///
+    /// This is only relevant when (non-host) CPU profiles are present, otherwise it is infallible
+    /// and we set an empty vector.
+    pub fn populate_msr_based_features(
+        &mut self,
+        hypervisor: &dyn hypervisor::Hypervisor,
+    ) -> Result<()> {
+        let profile_msr_based_features = {
+            // TODO: Consider including the `denied_feature_msrs` field and disabling those MSRs here
+            // once https://github.com/rust-vmm/kvm/pull/359 becomes available in CHV.
+            if let Some(arch::x86_64::cpu_profile::FeatureMsrUpdate {
+                msr_based_features, ..
+            }) = arch::x86_64::generate_msr_based_features(hypervisor, self.config.profile)
+                .map_err(Error::FeatureMsrs)?
+            {
+                msr_based_features
+            } else {
+                Vec::new()
+            }
+        };
+        self.profile_msr_based_features = profile_msr_based_features;
         Ok(())
     }
 
@@ -984,6 +1018,7 @@ impl CpuManager {
         vcpu.configure(
             boot_setup,
             self.cpuid.clone(),
+            &self.profile_msr_based_features,
             self.config.kvm_hyperv,
             topology,
             self.config.nested,
@@ -3115,7 +3150,7 @@ mod unit_tests {
             .create_vm(HypervisorVmConfig::default())
             .expect("new VM fd creation failed");
         let vcpu = vm.create_vcpu(0, None).unwrap();
-        setup_msrs(vcpu.as_ref()).unwrap();
+        setup_msrs(vcpu.as_ref(), &[]).unwrap();
 
         // This test will check against the last MSR entry configured (the tenth one).
         // See create_msr_entries for details.
