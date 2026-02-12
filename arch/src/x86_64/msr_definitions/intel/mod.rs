@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
+mod architectural_msrs;
 mod msr_based_features;
 
 pub use msr_based_features::INTEL_MSR_FEATURE_DEFINITIONS;

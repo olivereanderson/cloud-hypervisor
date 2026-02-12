@@ -1709,6 +1709,10 @@ pub static INTEL_CPUID_DEFINITIONS: CpuidDefinitions<153> = const {
                     policy: ProfilePolicy::Passthrough,
                 },
                 // MSR related
+                //
+                // TODO: Is passthrough correct?
+                // If this bit is set then MSR IA32_FLUSH_CMD
+                // becomes available, otherwise it is not.
                 ValueDefinition {
                     short: "flush_l1d",
                     description: "FLUSH L1D cache: IA32_FLUSH_CMD MSR",
