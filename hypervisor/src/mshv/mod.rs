@@ -399,6 +399,17 @@ impl hypervisor::Hypervisor for MshvHypervisor {
         }
         Ok(cpuid)
     }
+
+    #[cfg(target_arch = "x86_64")]
+    fn get_msr_index_list(&self) -> hypervisor::Result<Vec<u32>> {
+        // TODO: This is only intended for CPU profiles at the moment
+        // which will only be available for the KVM hypervisor to start with.
+        //
+        // Consider adding an implementation if/when CPU profiles for MSHV are
+        // introduced.
+        unimplemented!()
+    }
+
     #[cfg(target_arch = "x86_64")]
     fn get_feature_msrs(&self) -> hypervisor::Result<Vec<MsrEntry>> {
         unimplemented!()
