@@ -72,6 +72,7 @@ use crate::coredump::GuestDebuggable;
 #[cfg(feature = "kvm")]
 use crate::cpu::IS_IN_SHUTDOWN;
 use crate::device_manager::DeviceManager;
+use crate::dirty_log_worker::{DirtyLogWorker, DirtyLogWorkerHandle};
 use crate::landlock::Landlock;
 use crate::memory_manager::MemoryManager;
 use crate::migration::{get_vm_snapshot, recv_vm_config, recv_vm_state};
@@ -1596,6 +1597,7 @@ impl Vmm {
         mem_send: &mut SendAdditionalConnections,
         postponed_lifecycle_event: &Mutex<Option<PostMigrationLifecycleEvent>>,
         return_if_cancelled_cb: &impl Fn(&mut SocketStream) -> result::Result<(), MigratableError>,
+        dirty_log_aggregator: &DirtyLogWorkerHandle,
     ) -> result::Result<MemoryRangeTable /* remaining */, MigratableError> {
         let total_memory_size_bytes = vm
             .memory_range_table()?
@@ -1654,8 +1656,8 @@ impl Vmm {
             let iteration_table = if ctx.iteration == 0 {
                 vm.memory_range_table()?
             } else {
-                // TODO do this in a thread #7816
-                vm.dirty_log()?
+                let (dirty_table, _) = dirty_log_aggregator.get();
+                dirty_table
             };
 
             ctx.update_metrics_before_transfer(iteration_begin, &iteration_table);
@@ -1809,6 +1811,8 @@ impl Vmm {
         return_if_cancelled_cb: &impl Fn(&mut SocketStream) -> result::Result<(), MigratableError>,
     ) -> result::Result<(), MigratableError> {
         let mut mem_ctx = MemoryMigrationContext::new();
+        let dirty_log_aggregator = DirtyLogWorker::spawn(vm.cpu_manager(), vm.memory_manager())
+            .map_err(|e| MigratableError::MigrateSend(e.into()))?;
 
         vm.start_dirty_log()?;
         let remaining = Self::do_memory_iterations(
@@ -1820,6 +1824,7 @@ impl Vmm {
             mem_send,
             postponed_lifecycle_event,
             return_if_cancelled_cb,
+            &dirty_log_aggregator,
         )?;
         let downtime_begin = Instant::now();
         // End throttle thread
@@ -1834,16 +1839,28 @@ impl Vmm {
         {
             let iteration_begin = Instant::now();
 
-            let mut final_table = vm.dirty_log()?;
-            final_table.merge_in_place(remaining);
+            let mut iteration_table = vm.dirty_log()?;
+            iteration_table.merge_in_place(remaining);
+
+            // Send last batch of dirty pages:
+            let (mut final_table, _) = dirty_log_aggregator.stop().map_err(|e| {
+                MigratableError::MigrateSend(anyhow!("Failed to join dirty log worker: {e:?}"))
+            })?;
+            final_table.merge_in_place(iteration_table);
 
             mem_ctx.update_metrics_before_transfer(iteration_begin, &final_table);
+
             let transfer_begin = Instant::now();
             mem_send.send_memory(final_table, socket, return_if_cancelled_cb)?;
+
+            // Must happen after the dirty log aggregator is stopped
+            vm.stop_dirty_log()?;
+
             let transfer_duration = transfer_begin.elapsed();
             mem_ctx.update_metrics_after_transfer(transfer_begin, transfer_duration);
             mem_ctx.iteration += 1;
         }
+
         mem_ctx.finalize();
         info!("Precopy complete: {mem_ctx}");
         ctx.set_vm_paused(downtime_begin, mem_ctx)
