@@ -937,6 +937,7 @@ impl CpuManager {
     /// This is only relevant when (non-host) CPU profiles are present, otherwise it is infallible
     /// and we set an empty vector.
     pub fn apply_msr_updates(&mut self) -> Result<()> {
+        return Ok(());
         let profile_msr_based_features = {
             if let Some(arch::x86_64::cpu_profile::RequiredMsrUpdates {
                 msr_based_features,
