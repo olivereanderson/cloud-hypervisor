@@ -25,6 +25,13 @@ uuid = { workspace = true }
 vm-memory = { workspace = true, features = ["backend-bitmap", "backend-mmap"] }
 vmm-sys-util = { workspace = true, features = ["with-serde"] }
 
+[build-dependencies]
+anyhow = { workspace = true }
+flate2 = { workspace = true }
+prettyplease = "0.2.37"
+quote = "1.0.45"
+syn = "2.0.117"
+
 [dev-dependencies]
 proptest = "1.0.0"
 serde_json = { workspace = true }
