@@ -153,6 +153,38 @@ struct ArchMemRegion {
     r_type: RegionType,
 }
 
+type DirtyLogJoinParseFn = for<'a, 'b> unsafe fn(&'a [u64], &'b [u64], u64) -> MemoryRangeTable;
+
+/// Wrapper around a DirtyLogJoinParseFn that has been checked to be safe
+struct DirtyBitmapParser(DirtyLogJoinParseFn);
+
+impl DirtyBitmapParser {
+    /// Constructor
+    ///
+    /// # Safety
+    ///
+    /// This is only sound if it has been established at runtime (or through reasoning that the compiler is not capable of),
+    /// that the given `fun` may be safely called at any point in time.
+    unsafe fn new_unchecked(fun: DirtyLogJoinParseFn) -> Self {
+        Self(fun)
+    }
+
+    /// Constructor
+    fn new(fun: for<'a, 'b> fn(&'a [u64], &'b [u64], u64) -> MemoryRangeTable) -> Self {
+        Self(fun)
+    }
+
+    fn parse(
+        &self,
+        vm_dirty_bitmap: &[u64],
+        vmm_dirty_bitmap: &[u64],
+        gpa: u64,
+    ) -> MemoryRangeTable {
+        // SAFETY: Constructors guarantee safety
+        unsafe { self.0(vm_dirty_bitmap, vmm_dirty_bitmap, gpa) }
+    }
+}
+
 pub struct MemoryManager {
     boot_guest_memory: GuestMemoryMmap,
     guest_memory: GuestMemoryAtomic<GuestMemoryMmap>,
@@ -191,6 +223,7 @@ pub struct MemoryManager {
     pub acpi_address: Option<GuestAddress>,
     #[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
     uefi_flash: Option<GuestMemoryAtomic<GuestMemoryMmap>>,
+    dirty_bitmap_parser: DirtyBitmapParser,
 }
 
 #[derive(Error, Debug)]
@@ -1204,6 +1237,18 @@ impl MemoryManager {
         let end_of_ram_area = start_of_device_area.unchecked_sub(1);
         let ram_allocator = AddressAllocator::new(GuestAddress(0), start_of_device_area.0).unwrap();
 
+        #[cfg(not(target_arch = "x86_64"))]
+        let dirty_bitmap_parser = DirtyBitmapParser::new(standard_dirty_log_join_parse);
+
+        #[cfg(target_arch = "x86_64")]
+        let dirty_bitmap_parser = {
+            if is_x86_feature_detected!("avx512f") && is_x86_feature_detected!("avx512bw") {
+                // SAFETY: We checked that all the necessary features are available
+                unsafe { DirtyBitmapParser::new_unchecked(avx512_dirty_log_join_parse) }
+            } else {
+                DirtyBitmapParser::new(standard_dirty_log_join_parse)
+            }
+        };
         #[allow(unused_mut)]
         let mut memory_manager = MemoryManager {
             boot_guest_memory,
@@ -1238,6 +1283,7 @@ impl MemoryManager {
             #[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
             uefi_flash: None,
             thp: config.thp,
+            dirty_bitmap_parser,
         };
 
         Ok(Arc::new(Mutex::new(memory_manager)))
@@ -2657,12 +2703,14 @@ impl Migratable for MemoryManager {
                 }
             };
 
-            let dirty_bitmap = vm_dirty_bitmap
-                .iter()
-                .zip(vmm_dirty_bitmap.iter())
-                .map(|(x, y)| x | y);
+            // let dirty_bitmap = vm_dirty_bitmap
+            //     .iter()
+            //     .zip(vmm_dirty_bitmap.iter())
+            //     .map(|(x, y)| x | y);
 
-            let sub_table = MemoryRangeTable::from_dirty_bitmap(dirty_bitmap, r.gpa, 4096);
+            let sub_table =
+                self.dirty_bitmap_parser
+                    .parse(&vm_dirty_bitmap, &vmm_dirty_bitmap, r.gpa);
 
             if sub_table.regions().is_empty() {
                 debug!("Dirty Memory Range Table is empty");
@@ -2676,5 +2724,294 @@ impl Migratable for MemoryManager {
             table.extend(sub_table);
         }
         Ok(table)
+    }
+}
+
+fn standard_dirty_log_join_parse(
+    vm_dirty_bitmap: &[u64],
+    vmm_dirty_bitmap: &[u64],
+    gpa: u64,
+) -> MemoryRangeTable {
+    let dirty_bitmap = vm_dirty_bitmap
+        .iter()
+        .zip(vmm_dirty_bitmap.iter())
+        .map(|(x, y)| x | y);
+
+    MemoryRangeTable::from_dirty_bitmap(dirty_bitmap, gpa, 4096)
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx512f")]
+#[target_feature(enable = "avx512bw")]
+pub fn avx512_dirty_log_join_parse(
+    vm_dirty_bitmap: &[u64],
+    vmm_dirty_bitmap: &[u64],
+    gpa: u64,
+) -> MemoryRangeTable {
+    let mut v = Vec::new();
+    bitmap_to_memory_table_avx512(vm_dirty_bitmap, vmm_dirty_bitmap, gpa, 4096, |item| {
+        v.push(item)
+    });
+    MemoryRangeTable::new(v)
+}
+
+#[target_feature(enable = "avx512f")]
+#[target_feature(enable = "avx512bw")]
+pub fn bitmap_to_memory_table_avx512(
+    bitmap1: &[u64],
+    bitmap2: &[u64],
+    start_addr: u64,
+    page_size: u64,
+    mut callback: impl FnMut(MemoryRange),
+) {
+    use cmov::Cmov;
+    use core::arch::x86_64::{
+        __m512i, __mmask8, _mm512_add_epi64, _mm512_and_epi64, _mm512_andnot_epi64,
+        _mm512_cmpneq_epi64_mask, _mm512_loadu_epi64, _mm512_mask_compressstoreu_epi64,
+        _mm512_or_epi64, _mm512_permutex2var_epi64, _mm512_set_epi64, _mm512_set1_epi64,
+        _mm512_setzero_epi32, _mm512_slli_epi64, _mm512_srli_epi64,
+    };
+    // bitmaps should have the same length
+    assert_eq!(bitmap1.len(), bitmap2.len());
+    let len = bitmap1.len();
+    // page size should be a power of two
+    let page_size_log = page_size.ilog2();
+    assert_eq!(1 << page_size_log, page_size);
+
+    assert!(start_addr + (len as u64) * 64 * page_size < u64::try_from(i64::MAX).unwrap());
+    let len = bitmap1.len();
+
+    let lo_edges_mask: __m512i = { _mm512_set1_epi64(1) };
+    let all_bits = _mm512_set1_epi64(!(0i64));
+
+    let hi_edges_idx: __m512i = _mm512_set_epi64(6, 5, 4, 3, 2, 1, 0, 8 + 7);
+    let zeros = _mm512_setzero_epi32();
+
+    let mut b1_ptr: *const i64 = bitmap1.as_ptr().cast();
+    let mut b2_ptr: *const i64 = bitmap2.as_ptr().cast();
+
+    let mut zp = zeros;
+    let mut z: __m512i;
+
+    let load_from_ptrs = |ptr0: &mut *const i64, ptr1: &mut *const i64| {
+        let u = unsafe { _mm512_loadu_epi64(*ptr0) };
+        let v = unsafe { _mm512_loadu_epi64(*ptr1) };
+        *ptr0 = unsafe { ptr0.add(8) };
+        *ptr1 = unsafe { ptr1.add(8) };
+        _mm512_or_epi64(u, v)
+    };
+
+    let mut load_next = || {
+        let u = unsafe { _mm512_loadu_epi64(b1_ptr) };
+        let v = unsafe { _mm512_loadu_epi64(b2_ptr) };
+        b1_ptr = unsafe { b1_ptr.add(8) };
+        b2_ptr = unsafe { b2_ptr.add(8) };
+        _mm512_or_epi64(u, v)
+    };
+
+    let masks = |q: __m512i, qp: __m512i| -> (__m512i, __mmask8) {
+        let oe: __m512i = { _mm512_srli_epi64(_mm512_permutex2var_epi64(q, hi_edges_idx, qp), 63) };
+        let not_q: __m512i = _mm512_andnot_epi64(q, all_bits);
+
+        let not_q_sl_1 = _mm512_slli_epi64(not_q, 1);
+
+        let not_q_sr_1 = _mm512_srli_epi64(not_q, 1);
+        let b = _mm512_or_epi64(
+            _mm512_and_epi64(not_q_sl_1, q),
+            _mm512_and_epi64(_mm512_andnot_epi64(oe, q), lo_edges_mask),
+        );
+        let e1 = _mm512_and_epi64(q, not_q_sr_1);
+        let e3 = _mm512_slli_epi64(e1, 1);
+
+        let e = _mm512_or_epi64(e3, _mm512_and_epi64(not_q, oe));
+
+        let indices_masks = _mm512_or_epi64(b, e);
+
+        let k = _mm512_cmpneq_epi64_mask(indices_masks, zeros);
+        (indices_masks, k)
+    };
+
+    let num_iters = len / 8;
+    let rem = len % 8;
+
+    let mut offsets = _mm512_set_epi64(
+        64 * 7,
+        64 * 6,
+        64 * 5,
+        64 * 4,
+        64 * 3,
+        64 * 2,
+        64 * 1,
+        64 * 0,
+    );
+
+    let offsets_inc = _mm512_set1_epi64(512);
+
+    let mut offset_queue = [0i64; 64];
+    let mut offset_queue_ptr = offset_queue.as_mut_ptr();
+    let mut queue = [0i64; 64];
+    let mut queue_ptr = queue.as_mut_ptr();
+    let mut queue_len = 0;
+    // let mut memory_ranges = Vec::new();
+    for _ in 0..num_iters {
+        use std::arch::x86_64::_mm512_maskz_compress_epi64;
+
+        z = load_next();
+        let (positions, k) = masks(z, zp);
+        let positions = _mm512_maskz_compress_epi64(k, positions);
+        let active_offsets = _mm512_maskz_compress_epi64(k, offsets);
+        zp = z;
+        let num_hits = k.count_ones() as usize;
+        unsafe {
+            use std::arch::x86_64::_mm512_storeu_epi64;
+
+            _mm512_storeu_epi64(queue_ptr, positions);
+            _mm512_storeu_epi64(offset_queue_ptr, active_offsets);
+            queue_ptr = queue_ptr.add(num_hits as usize);
+            offset_queue_ptr = offset_queue_ptr.add(num_hits as usize);
+        }
+        offsets = _mm512_add_epi64(offsets, offsets_inc);
+        queue_len += num_hits;
+        if queue_len >= 32 {
+            let mut next = 1usize;
+            let mut elt = queue[0] as u64;
+            let mut offset = offset_queue[0] as u64;
+            unsafe {
+                // SAFETY: queue_len can be at most 40, but the queue itself has 64 elements
+                *queue.get_unchecked_mut(queue_len) = 0;
+            }
+            while next < queue_len {
+                let b = elt.next_bit_pos_unchecked() + offset;
+                let v = unsafe { *queue.get_unchecked(next) } as u64;
+                let off = unsafe { *offset_queue.get_unchecked(next) } as u64;
+                let cond = (elt == 0) as u8;
+                elt.cmovnz(&v, cond);
+                offset.cmovnz(&off, cond);
+                next += cond as usize;
+
+                let e = elt.next_bit_pos_unchecked() + offset;
+                let v = unsafe { *queue.get_unchecked(next) } as u64;
+                let off = unsafe { *offset_queue.get_unchecked(next) } as u64;
+                let cond = (elt == 0) as u8;
+                elt.cmovnz(&v, cond);
+                offset.cmovnz(&off, cond);
+                next += cond as usize;
+
+                let length = (e - b) << page_size_log;
+                let gpa = (b << page_size_log) + start_addr;
+                callback(MemoryRange { gpa, length });
+            }
+            queue[0] = elt as i64;
+            offset_queue[0] = offset as i64;
+            let elt_not_zero = elt != 0;
+            queue_len = elt_not_zero as usize;
+            queue_ptr = unsafe { queue.as_mut_ptr().add(queue_len) };
+            offset_queue_ptr = unsafe { offset_queue.as_mut_ptr().add(queue_len) };
+        }
+    }
+    let mut remaining_1_padded = [0u64; 16];
+    let mut remaining_2_padded = [0u64; 16];
+    let remaining_offset = len - rem;
+
+    for (u, r) in bitmap1[remaining_offset..]
+        .iter()
+        .zip(remaining_1_padded.iter_mut())
+    {
+        *r = *u;
+    }
+    for (u, r) in bitmap2[remaining_offset..]
+        .iter()
+        .zip(remaining_2_padded.iter_mut())
+    {
+        *r = *u;
+    }
+
+    let mut r1_ptr = remaining_1_padded.as_ptr().cast();
+    let mut r2_ptr = remaining_2_padded.as_ptr().cast();
+
+    z = load_from_ptrs(&mut r1_ptr, &mut r2_ptr);
+
+    let (positions, k) = masks(z, zp);
+
+    let num_hits = k.count_ones() as usize;
+
+    zp = z;
+    unsafe {
+        _mm512_mask_compressstoreu_epi64(queue_ptr, k, positions);
+        _mm512_mask_compressstoreu_epi64(offset_queue_ptr, k, offsets);
+        queue_ptr = queue_ptr.add(num_hits as usize);
+        offset_queue_ptr = offset_queue_ptr.add(num_hits as usize);
+    }
+
+    offsets = _mm512_add_epi64(offsets, offsets_inc);
+    queue_len += num_hits;
+
+    z = load_from_ptrs(&mut r1_ptr, &mut r2_ptr);
+    let (positions, k) = masks(z, zp);
+    let num_hits = k.count_ones() as usize;
+    unsafe {
+        _mm512_mask_compressstoreu_epi64(queue_ptr, k, positions);
+        _mm512_mask_compressstoreu_epi64(offset_queue_ptr, k, offsets);
+    }
+    queue_len += num_hits;
+    {
+        let mut next = 1usize;
+        let mut elt = queue[0] as u64;
+
+        let mut offset = offset_queue[0] as u64;
+
+        unsafe {
+            // SAFETY: queue_len can be at most 40, but the queue itself has 64 elements
+            *queue.get_unchecked_mut(queue_len) = 0;
+        }
+        while next < queue_len {
+            let b = elt.next_bit_pos_unchecked() + offset;
+            let v = unsafe { *queue.get_unchecked(next) } as u64;
+            let off = unsafe { *offset_queue.get_unchecked(next) } as u64;
+            let cond = (elt == 0) as u8;
+            elt.cmovnz(&v, cond);
+            offset.cmovnz(&off, cond);
+            next += cond as usize;
+
+            let e = elt.next_bit_pos_unchecked() + offset;
+            let v = unsafe { *queue.get_unchecked(next) } as u64;
+            let off = unsafe { *offset_queue.get_unchecked(next) } as u64;
+            let cond = (elt == 0) as u8;
+            elt.cmovnz(&v, cond);
+            offset.cmovnz(&off, cond);
+            next += cond as usize;
+
+            let length = (e - b) << page_size_log;
+            let gpa = (b << page_size_log) + start_addr;
+            callback(MemoryRange { gpa, length });
+        }
+
+        if elt != 0 {
+            let bits_left = elt.count_ones();
+            let pairs_left = bits_left / 2;
+            for _ in 0..pairs_left {
+                let b = elt.next_bit_pos_unchecked() + offset;
+
+                let e = elt.next_bit_pos_unchecked() + offset;
+
+                let length = (e - b) << page_size_log;
+                let gpa = (b << page_size_log) + start_addr;
+                callback(MemoryRange { gpa, length });
+            }
+        }
+    }
+}
+
+trait NextBitPosExt {
+    type Output;
+    fn next_bit_pos_unchecked(&mut self) -> Self::Output;
+}
+impl NextBitPosExt for u64 {
+    type Output = Self;
+    fn next_bit_pos_unchecked(&mut self) -> Self::Output {
+        let idx = self.trailing_zeros() as u64;
+        let lsb = *self & self.wrapping_neg();
+        *self ^= lsb;
+        idx
     }
 }

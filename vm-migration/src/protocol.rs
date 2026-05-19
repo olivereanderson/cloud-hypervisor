@@ -314,6 +314,12 @@ pub struct MemoryRangeTable {
     data: Vec<MemoryRange>,
 }
 
+impl MemoryRangeTable {
+    pub fn new(data: Vec<MemoryRange>) -> Self {
+        Self { data }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 struct MemoryRangeTableIterator {
     chunk_size: u64,

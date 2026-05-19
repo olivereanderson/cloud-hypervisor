@@ -42,6 +42,7 @@ block = { path = "../block" }
 blocking = { version = "1.6.2", optional = true }
 cfg-if = { workspace = true }
 clap = { workspace = true }
+cmov = "0.5.3"
 devices = { path = "../devices" }
 dhat = { workspace = true, optional = true }
 epoll = { workspace = true }
