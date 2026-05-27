@@ -196,12 +196,15 @@ impl DirtyLogWorker {
             let state_lock = self.shared_state.lock().unwrap();
 
             // We sleep but might get woken up by our handler to exit.
-            let (guard, _timed_out) = self
-                .stop_condvar
-                .wait_timeout_while(state_lock, THREAD_THROTTLE, |state| !state.stop)
-                .unwrap();
+            let stop = {
+                let (guard, _timed_out) = self
+                    .stop_condvar
+                    .wait_timeout_while(state_lock, THREAD_THROTTLE, |state| !state.stop)
+                    .unwrap();
+                guard.stop
+            };
 
-            if guard.stop {
+            if stop {
                 // At this point, we assume the VM is stopped and perform one last fetch.
                 let new_table = self.fetch_table()?;
                 self.calc_metrics_and_update_table(new_table);
