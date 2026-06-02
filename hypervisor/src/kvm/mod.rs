@@ -1825,6 +1825,44 @@ impl hypervisor::Hypervisor for KvmHypervisor {
         Ok(v)
     }
 
+    #[cfg(target_arch = "x86_64")]
+    fn get_feature_msrs(&self) -> hypervisor::Result<Vec<MsrEntry>> {
+        let list = self
+            .kvm
+            .get_msr_feature_index_list()
+            .map_err(|e| hypervisor::HypervisorError::GetMsrList(e.into()))?;
+
+        let kvm_msrs: Vec<kvm_msr_entry> = list
+            .as_slice()
+            .iter()
+            .copied()
+            .map(|index| kvm_msr_entry {
+                index,
+                ..Default::default()
+            })
+            .collect();
+
+        let mut kvm_msrs = MsrEntries::from_entries(&kvm_msrs).expect("Kvm::get_msr_feature_index_list should not return more entries than what MsrEntries can handle");
+
+        let num_feature_msrs = self
+            .kvm
+            .get_msrs(&mut kvm_msrs)
+            .map_err(|e| hypervisor::HypervisorError::GetFeatureMsrs(e.into()))?;
+
+        assert_eq!(
+            list.as_slice().len(),
+            num_feature_msrs,
+            "We should be able to read all feature MSRs advertised by KVM_GET_MSR_FEATURE_INDEX_LIST"
+        );
+
+        Ok(kvm_msrs
+            .as_slice()
+            .iter()
+            .copied()
+            .map(MsrEntry::from)
+            .collect())
+    }
+
     #[cfg(target_arch = "aarch64")]
     ///
     /// Retrieve AArch64 host maximum IPA size supported by KVM.
