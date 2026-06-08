@@ -96,6 +96,14 @@ impl FeatureMsrAdjustment {
     }
 }
 
+/// Data describing MSR adjustments related to a CPU profile.
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct MsrProfileData {
+    /// Describes feature MSR adjustments necessary to become compatible with
+    /// the desired target.
+    pub adjustments: Vec<(RegisterAddress, FeatureMsrAdjustment)>,
+}
+
 #[cfg(test)]
 mod unit_tests {
     use hypervisor::arch::x86::MsrEntry;
