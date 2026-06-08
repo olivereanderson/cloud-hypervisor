@@ -9,6 +9,8 @@
 //
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64;
+#[cfg(feature = "tdx")]
+use std::os::fd::RawFd;
 use std::result;
 use std::sync::Arc;
 
@@ -146,7 +148,7 @@ pub trait Hypervisor: Send + Sync {
     /// Retrieve TDX capabilities
     ///
     #[cfg(feature = "tdx")]
-    fn tdx_capabilities(&self) -> Result<TdxCapabilities> {
+    fn tdx_capabilities(&self, vm_fd: &RawFd) -> Result<TdxCapabilities> {
         unimplemented!()
     }
     ///
