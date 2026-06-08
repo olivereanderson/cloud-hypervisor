@@ -4,13 +4,13 @@
 //
 
 use hypervisor::CpuVendor;
-use hypervisor::arch::x86::CpuIdEntry;
+use hypervisor::arch::x86::{CpuIdEntry, MsrEntry};
 
 use crate::x86_64::cpu_profile::cpuid_adjustments::{
     CpuidOutputRegisterAdjustments, CpuidProfileData, MissingCpuidEntriesError,
 };
-use crate::x86_64::cpu_profile::msr_adjustments::MsrProfileData;
-use crate::x86_64::{AMX_TILECFG_BIT, AMX_TILEDATA_BIT, CpuidReg};
+use crate::x86_64::cpu_profile::msr_adjustments::{FeatureMsrAdjustment, MsrProfileData};
+use crate::x86_64::{AMX_TILECFG_BIT, AMX_TILEDATA_BIT, CpuidReg, Error};
 
 /// Mask indicating availability of the AMX TILECFG state component
 const TILECFG_MASK: u32 = 1_u32 << AMX_TILECFG_BIT;
@@ -73,6 +73,25 @@ impl CpuProfile {
         match self {
             CpuProfile::Host => None,
         }
+    }
+
+    /// Computes the `feature_msrs` that need to be set in order to be compatible with the chosen CPU profile.
+    ///
+    /// This method does **not** perform any compatibility checks beyond
+    /// ensuring that all expected MSRs are present.
+    ///
+    /// The caller is responsible for ensuring that the returned feature MSRs
+    /// may be utilized.
+    ///
+    /// The Host profile guarantees that `Ok(None)` is returned.
+    pub(in crate::x86_64) fn required_feature_msr_updates(
+        &self,
+        feature_msrs: &[MsrEntry],
+    ) -> Result<Option<Vec<MsrEntry>>, Error> {
+        let Some(msr_profile_data) = self.msr_data() else {
+            return Ok(None);
+        };
+        FeatureMsrAdjustment::adjust_to(&msr_profile_data.adjustments, feature_msrs).map(Some)
     }
 }
 
