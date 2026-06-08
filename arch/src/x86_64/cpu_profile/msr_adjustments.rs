@@ -109,3 +109,12 @@ pub struct MsrProfileData {
     /// is made for missing Hyper-V MSRs when `kvm_hyperv=off`.
     pub required_msrs: Vec<RegisterAddress>,
 }
+
+/// Computed MSR updates the hypervisor backend must apply to achieve compatibility with a given CPU profile.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RequiredMsrUpdates {
+    /// Feature MSRs to be set.
+    pub feature_msrs: Vec<MsrEntry>,
+    /// A buffer that may be used to snapshot MSRs in a way that is compatible with the CPU profile.
+    pub msr_state_buffer: Vec<MsrEntry>,
+}
