@@ -19,9 +19,7 @@ use std::num;
 use std::os::fd::{FromRawFd, OwnedFd};
 #[cfg(feature = "tdx")]
 use std::os::raw;
-use std::os::unix::io::AsRawFd;
-#[cfg(feature = "tdx")]
-use std::os::unix::io::RawFd;
+use std::os::unix::io::{AsRawFd, RawFd};
 #[cfg(feature = "tdx")]
 use std::ptr;
 #[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
@@ -688,9 +686,11 @@ impl KvmVm {
         self.fd.check_extension(c)
     }
 
-    #[cfg(feature = "tdx")]
     /// Creates an anonymous file and returns a file descriptor that refers to it.
-    pub fn create_guest_memfd(&self, gmem: kvm_bindings::kvm_create_guest_memfd) -> vm::Result<RawFd> {
+    pub fn create_guest_memfd(
+        &self,
+        gmem: kvm_bindings::kvm_create_guest_memfd,
+    ) -> vm::Result<RawFd> {
         let fd = self.fd.create_guest_memfd(gmem);
         Ok(fd.unwrap())
     }

@@ -1570,9 +1570,9 @@ impl Vm {
     #[cfg(all(feature = "kvm", feature = "sev_snp"))]
     fn reserve_bootloader_regions(memory_manager: &Arc<Mutex<MemoryManager>>) -> Result<()> {
         let mut mm = memory_manager.lock().unwrap();
-        mm.add_ram_region(BOOTLOADER_START, BOOTLOADER_SIZE)
+        mm.add_ram_region(BOOTLOADER_START, BOOTLOADER_SIZE, None)
             .map_err(Error::MemoryManager)?;
-        mm.add_ram_region(KVM_VMSA_PAGE_ADDRESS, KVM_VMSA_PAGE_SIZE)
+        mm.add_ram_region(KVM_VMSA_PAGE_ADDRESS, KVM_VMSA_PAGE_SIZE, None)
             .map_err(Error::MemoryManager)?;
         Ok(())
     }
@@ -2535,7 +2535,11 @@ impl Vm {
             self.memory_manager
                 .lock()
                 .unwrap()
-                .add_ram_region(GuestAddress(section.address), section.size as usize)
+                .add_ram_region(
+                    GuestAddress(section.address),
+                    section.size as usize,
+                    Some(&self.vm),
+                )
                 .map_err(Error::AllocatingTdvfMemory)?;
         }
 
