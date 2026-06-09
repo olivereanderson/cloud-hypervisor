@@ -55,6 +55,8 @@ use hypervisor::{HypervisorVmConfig, HypervisorVmError, VmOps};
 use igvm::IgvmFile;
 #[cfg(feature = "sev_snp")]
 use igvm_defs::SnpPolicy;
+#[cfg(feature = "tdx")]
+use kvm_bindings::{KVM_CAP_EXIT_HYPERCALL, kvm_enable_cap};
 use libc::{SIGWINCH, termios};
 #[cfg(feature = "tdx")]
 use linux_loader::bootparam;
@@ -86,8 +88,6 @@ use vm_migration::{
 };
 use vmm_sys_util::eventfd::EventFd;
 use vmm_sys_util::sock_ctrl_msg::ScmSocket;
-#[cfg(feature = "tdx")]
-use kvm_bindings::{KVM_CAP_EXIT_HYPERCALL, kvm_enable_cap};
 
 use crate::config::{MemoryRestoreMode, ValidationError, add_to_config};
 use crate::console_devices::{ConsoleDeviceError, ConsoleInfo};
@@ -823,10 +823,7 @@ impl Vm {
     }
 
     #[cfg(feature = "tdx")]
-    fn tdx_enable_hypercall(
-        vm: &Arc<dyn hypervisor::Vm>,
-        enable_mask: u64,
-    ) -> Result<()> {
+    fn tdx_enable_hypercall(vm: &Arc<dyn hypervisor::Vm>, enable_mask: u64) -> Result<()> {
         let mut cap: kvm_enable_cap = Default::default();
         cap.cap = KVM_CAP_EXIT_HYPERCALL;
         cap.flags = 0;
@@ -1386,6 +1383,8 @@ impl Vm {
         } else {
             vm_config.lock().unwrap().is_tdx_enabled()
         };
+        #[cfg(not(feature = "tdx"))]
+        let tdx_enabled = false;
 
         #[cfg(feature = "igvm")]
         let igvm_file = {
@@ -1449,7 +1448,6 @@ impl Vm {
                     &vm_config.lock().unwrap().memory.clone(),
                     None,
                     phys_bits,
-                    #[cfg(feature = "tdx")]
                     tdx_enabled,
                     None,
                     Default::default(),
@@ -2564,6 +2562,7 @@ impl Vm {
                 .add_ram_region(
                     GuestAddress(section.address),
                     section.size as usize,
+                    true,
                     Some(&self.vm),
                 )
                 .map_err(Error::AllocatingTdvfMemory)?;

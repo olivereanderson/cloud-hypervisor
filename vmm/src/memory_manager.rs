@@ -642,6 +642,7 @@ impl MemoryManager {
         ram_regions: &[(GuestAddress, usize)],
         zones: &[MemoryZoneConfig],
         thp: bool,
+        tdx_enabled: bool,
         vm: Option<&Arc<dyn hypervisor::Vm>>,
     ) -> Result<(Vec<Arc<GuestRegionMmap>>, MemoryZones), Error> {
         let mut zone_iter = zones.iter();
@@ -715,6 +716,7 @@ impl MemoryManager {
                     zone.host_numa_node,
                     None,
                     thp,
+                    tdx_enabled,
                     vm,
                 )?;
 
@@ -858,6 +860,7 @@ impl MemoryManager {
                         zone_config.host_numa_node,
                         existing_memory_files.remove(&guest_ram_mapping.slot),
                         thp,
+                        false,
                         None,
                     )?;
                     memory_regions.push(Arc::clone(&region));
@@ -1861,7 +1864,7 @@ impl MemoryManager {
         config: &MemoryConfig,
         prefault: Option<bool>,
         phys_bits: u8,
-        #[cfg(feature = "tdx")] tdx_enabled: bool,
+        tdx_enabled: bool,
         restore_data: Option<&MemoryManagerSnapshotData>,
         existing_memory_files: HashMap<u32, File>,
     ) -> Result<Arc<Mutex<MemoryManager>>, Error> {
@@ -1939,6 +1942,7 @@ impl MemoryManager {
                 &ram_regions,
                 &zones,
                 config.thp,
+                tdx_enabled,
                 Some(&vm),
             )?;
 
@@ -1987,6 +1991,7 @@ impl MemoryManager {
                                 zone.host_numa_node,
                                 None,
                                 config.thp,
+                                tdx_enabled,
                                 Some(&vm),
                             )?;
 
@@ -2144,7 +2149,7 @@ impl MemoryManager {
                 config,
                 Some(prefault),
                 phys_bits,
-                #[cfg(feature = "tdx")]
+                // TODO: TDX don't support snapshot.
                 false,
                 Some(&mem_snapshot),
                 Default::default(),
@@ -2325,13 +2330,17 @@ impl MemoryManager {
         host_numa_node: Option<u32>,
         existing_memory_file: Option<File>,
         thp: bool,
+        tdx_enabled: bool,
         vm: Option<&Arc<dyn hypervisor::Vm>>,
     ) -> Result<MmapRegion<AtomicBitmap>, Error> {
         let mut mmap_flags = if reserve { 0 } else { libc::MAP_NORESERVE };
 
         // The duplication of mmap_flags ORing here is unfortunate but it also makes
         // the complexity of the handling clear.
-        let fo = if let Some(f) = existing_memory_file {
+        let fo = if tdx_enabled {
+            mmap_flags |= libc::MAP_PRIVATE | libc::MAP_ANONYMOUS;
+            Some(Self::create_guest_memfd_file(vm.unwrap(), size)?)
+        } else if let Some(f) = existing_memory_file {
             // It must be MAP_SHARED as we wouldn't already have an FD
             mmap_flags |= libc::MAP_SHARED;
             Some(FileOffset::new(f, file_offset))
@@ -2342,9 +2351,6 @@ impl MemoryManager {
                 mmap_flags |= libc::MAP_PRIVATE;
             }
             Some(Self::open_backing_file(backing_file, file_offset, shared)?)
-        } else if let Some(vm) = vm {
-            mmap_flags |= libc::MAP_PRIVATE | libc::MAP_ANONYMOUS;
-            Some(Self::create_guest_memfd_file(vm, size)?)
         } else if shared || hugepages {
             // For hugepages we must also MAP_SHARED otherwise we will trigger #4805
             // because the MAP_PRIVATE will trigger CoW against the backing file with
@@ -2453,6 +2459,7 @@ impl MemoryManager {
         host_numa_node: Option<u32>,
         existing_memory_file: Option<File>,
         thp: bool,
+        tdx_enabled: bool,
         vm: Option<&Arc<dyn hypervisor::Vm>>,
     ) -> Result<Arc<GuestRegionMmap>, Error> {
         let r = Self::create_ram_region_raw(
@@ -2466,6 +2473,7 @@ impl MemoryManager {
             host_numa_node,
             existing_memory_file,
             thp,
+            tdx_enabled,
             vm,
         )?;
 
@@ -2554,6 +2562,7 @@ impl MemoryManager {
         &mut self,
         start_addr: GuestAddress,
         size: usize,
+        tdx_enabled: bool,
         vm: Option<&Arc<dyn hypervisor::Vm>>,
     ) -> Result<Arc<GuestRegionMmap>, Error> {
         // Allocate memory for the region
@@ -2569,6 +2578,7 @@ impl MemoryManager {
             None,
             None,
             self.thp,
+            tdx_enabled,
             vm,
         )?;
 
@@ -2673,7 +2683,7 @@ impl MemoryManager {
             ));
         }
 
-        let region = self.add_ram_region(start_addr, size, None)?;
+        let region = self.add_ram_region(start_addr, size, false, None)?;
 
         // Add region to the list of regions associated with the default
         // memory zone.
