@@ -207,6 +207,8 @@ use igvm_defs::PAGE_SIZE_4K;
 use kvm_bindings::{
     KVM_MEMORY_ATTRIBUTE_PRIVATE, KVM_X86_SNP_VM, kvm_memory_attributes, kvm_segment as Segment,
 };
+#[cfg(not(feature = "sev_snp"))]
+use kvm_bindings::{KVM_MEMORY_ATTRIBUTE_PRIVATE, kvm_memory_attributes};
 use vm_memory::GuestAddress;
 #[cfg(feature = "sev_snp")]
 use x86_64::sev;
@@ -1149,6 +1151,8 @@ impl vm::Vm for KvmVm {
         readonly: bool,
         log_dirty_pages: bool,
         visibility: vm::MemoryVisibility,
+        guest_memfd: Option<u64>,
+        guest_memfd_offset: Option<u64>,
     ) -> vm::Result<()> {
         let mut flags = 0;
         if readonly {
@@ -1158,7 +1162,7 @@ impl vm::Vm for KvmVm {
 
         // Create a per-region guest_memfd when supported.
         // Each region gets its own fd sized exactly to memory_size
-        let guest_memfd = if let Some(slots) = self
+        let mut guest_memfd_todo = if let Some(slots) = self
             .memory_slots
             .as_ref()
             .filter(|_| visibility == vm::MemoryVisibility::Private)
@@ -1187,7 +1191,11 @@ impl vm::Vm for KvmVm {
             );
             raw_fd
         } else {
-            0
+            // TODO: Switch to using slots for TDX as well
+            if guest_memfd.is_some() {
+                flags |= KVM_MEM_GUEST_MEMFD;
+            }
+            guest_memfd.map(|val| val as u32).unwrap_or(0)
         };
 
         let region = kvm_userspace_memory_region2 {
@@ -1196,12 +1204,13 @@ impl vm::Vm for KvmVm {
             guest_phys_addr,
             memory_size: memory_size as u64,
             userspace_addr: userspace_addr as usize as u64,
-            guest_memfd,
+            guest_memfd: guest_memfd_todo,
             // Each guest_memfd is per-region and sized to memory_size,
             // so the region's data always starts at offset 0.
             guest_memfd_offset: 0,
             ..Default::default()
         };
+
         if log_dirty_pages {
             if (region.flags & KVM_MEM_READONLY) != 0 {
                 return Err(vm::HypervisorVmError::CreateUserMemory(anyhow!(
@@ -1224,10 +1233,19 @@ impl vm::Vm for KvmVm {
             );
         }
 
-        // SAFETY: Safe because caller promised this is safe.
-        unsafe {
-            self.set_user_memory_region(region)
-                .map_err(|e| vm::HypervisorVmError::CreateUserMemory(e.into()))?;
+        // TODO: Use slots for Intel TDX as well so we can avoid this step
+        if guest_memfd.is_none() || cfg!(feature = "sev_snp") {
+            // SAFETY: Safe because caller promised this is safe.
+            unsafe {
+                self.set_user_memory_region(region)
+                    .map_err(|e| vm::HypervisorVmError::CreateUserMemory(e.into()))?;
+            }
+        } else {
+            unsafe {
+                self.fd
+                    .set_user_memory_region2(region)
+                    .map_err(|e| vm::HypervisorVmError::CreateUserMemory(e.into()))?;
+            }
         }
 
         #[cfg(feature = "sev_snp")]
@@ -1241,6 +1259,24 @@ impl vm::Vm for KvmVm {
                 })
                 .map_err(|e| vm::HypervisorVmError::CreateUserMemory(e.into()))?;
         }
+
+        #[cfg(not(feature = "sev_snp"))]
+        if guest_memfd.is_some() {
+            let attr = kvm_memory_attributes {
+                address: guest_phys_addr,
+                size: memory_size as u64,
+                attributes: KVM_MEMORY_ATTRIBUTE_PRIVATE as u64,
+                flags: 0,
+            };
+            let ret = self
+                .fd
+                .set_memory_attributes(attr)
+                .map_err(|e| vm::HypervisorVmError::CreateUserMemory(e.into()));
+            if ret.is_err() {
+                return ret;
+            }
+        }
+
         Ok(())
     }
 

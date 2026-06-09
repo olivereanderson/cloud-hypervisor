@@ -819,6 +819,8 @@ impl DeviceRelocation for AddressManager {
                                 false,
                                 false,
                                 hypervisor::MemoryVisibility::Shared,
+                                None,
+                                None,
                             )
                             .map_err(|e| {
                                 io::Error::other(format!(
@@ -3372,6 +3374,8 @@ impl DeviceManager {
                     false,
                     false,
                     hypervisor::MemoryVisibility::Shared,
+                    None,
+                    None,
                 )
                 .map_err(DeviceManagerError::MemoryManager)
         }?;
@@ -5739,6 +5743,8 @@ impl IvshmemOps for IvshmemHandler {
                     false,
                     false,
                     hypervisor::MemoryVisibility::Shared,
+                    None,
+                    None,
                 )
             }
         }

@@ -10,7 +10,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, Seek, SeekFrom};
 use std::mem::{MaybeUninit, zeroed};
 use std::num::NonZeroUsize;
-use std::ops::{BitAnd, Not, Sub};
+use std::ops::{BitAnd, Deref, Not, Sub};
 use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
 use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
 use std::path::{Path, PathBuf};
@@ -1749,6 +1749,20 @@ impl MemoryManager {
 
         for (zone_id, regions, zone_mergeable) in list {
             for (region, virtio_mem) in regions {
+                let inner_region = region.deref().deref();
+                let file_offset = inner_region.file_offset();
+                let guest_memfd = if let Some(file_offset) = file_offset {
+                    let fd = file_offset.arc().as_raw_fd();
+                    Some(fd as u64)
+                } else {
+                    None
+                };
+                let guest_memfd_offset = if let Some(file_offset) = file_offset {
+                    let start = file_offset.start();
+                    Some(start as u64)
+                } else {
+                    None
+                };
                 // SAFETY: guaranteed by GuestRegionMmap invariants
                 let slot = unsafe {
                     self.create_userspace_mapping(
@@ -1759,6 +1773,8 @@ impl MemoryManager {
                         false,
                         self.log_dirty,
                         hypervisor::MemoryVisibility::Private,
+                        guest_memfd,
+                        guest_memfd_offset,
                     )
                 }?;
 
@@ -1824,6 +1840,8 @@ impl MemoryManager {
                     false,
                     false,
                     hypervisor::MemoryVisibility::Private,
+                    None,
+                    None,
                 )
                 .map_err(Error::CreateUefiFlash)?;
         }
@@ -2562,6 +2580,22 @@ impl MemoryManager {
             }])?;
         }
 
+        // TODO: try to use memory slots like the SEV-SNP code does
+        let inner_region = region.deref();
+        let file_offset = inner_region.file_offset();
+        let guest_memfd = if let Some(file_offset) = file_offset {
+            let fd = file_offset.arc().as_raw_fd();
+            Some(fd as u64)
+        } else {
+            None
+        };
+        let guest_memfd_offset = if let Some(file_offset) = file_offset {
+            let start = file_offset.start();
+            Some(start as u64)
+        } else {
+            None
+        };
+
         // Map it into the guest
         // SAFETY: guaranteed by GuestMmapRegion invariants
         let slot = unsafe {
@@ -2575,6 +2609,8 @@ impl MemoryManager {
                 false,
                 self.log_dirty,
                 hypervisor::MemoryVisibility::Private,
+                guest_memfd,
+                guest_memfd_offset,
             )
         }?;
         self.guest_ram_mappings.push(GuestRamMapping {
@@ -2700,6 +2736,8 @@ impl MemoryManager {
         readonly: bool,
         log_dirty: bool,
         visibility: hypervisor::MemoryVisibility,
+        guest_memfd: Option<u64>,
+        guest_memfd_offset: Option<u64>,
     ) -> Result<u32, Error> {
         let slot = self.allocate_memory_slot();
 
@@ -2719,6 +2757,8 @@ impl MemoryManager {
                     readonly,
                     log_dirty,
                     visibility,
+                    guest_memfd,
+                    guest_memfd_offset,
                 )
                 .map_err(Error::CreateUserMemoryRegion)?;
         }
