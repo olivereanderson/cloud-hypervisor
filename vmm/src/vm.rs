@@ -438,7 +438,7 @@ struct VmOpsHandler {
 
 #[cfg(feature = "tdx")]
 impl VmOpsHandler {
-    pub fn convert_memory(
+    fn convert_memory(
         &self,
         start: u64,
         size: u64,
@@ -2827,7 +2827,8 @@ impl Vm {
                         // Create the payload info that will be inserted into
                         // the HOB.
                         payload_info = Some(PayloadInfo {
-                            image_type: PayloadImageType::BzImage,
+                            image_type: PayloadImageType::BzImage as u32,
+                            reserved: 0,
                             entry_point: section.address,
                         });
                     }

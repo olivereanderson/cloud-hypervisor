@@ -1092,7 +1092,11 @@ impl PayloadConfig {
             {
                 Ok(())
             }
+            #[cfg(not(feature = "tdx"))]
             (Some(_firmware), Some(_kernel)) => Err(PayloadConfigError::FirmwarePlusOtherPayloads),
+            // TODO: Understand the nature of the former error
+            #[cfg(feature = "tdx")]
+            (Some(_firmware), Some(_kernel)) => Ok(()),
             (Some(_firmware), None) => {
                 if self.cmdline.is_some() {
                     warn!("Ignoring cmdline parameter as firmware is provided as the payload");
