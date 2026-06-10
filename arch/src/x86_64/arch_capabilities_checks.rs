@@ -7,7 +7,6 @@ use hypervisor::arch::x86::MsrEntry;
 use log::{debug, error};
 
 use crate::x86_64::Error;
-use crate::x86_64::cpu_profile::msr_adjustments::RequiredMsrUpdates;
 
 /// The register address of the IA32_ARCH_CAPABILITIES MSR
 const IA32_ARCH_CAPABILITIES: u32 = 0x10a;
@@ -15,7 +14,7 @@ const IA32_ARCH_CAPABILITIES: u32 = 0x10a;
 /// Check that the MSR updates required by the CPU profile are compatible with the
 /// host's feature MSRs.
 pub fn valid_required_arch_capabilities_update(
-    required_updates: &RequiredMsrUpdates,
+    required_updates: &[MsrEntry],
     host_feature_msrs: &[MsrEntry],
 ) -> Result<(), Error> {
     let find_arch_capabilities = |msrs: &[MsrEntry]| {
@@ -24,9 +23,7 @@ pub fn valid_required_arch_capabilities_update(
             .map(|entry| entry.data)
     };
 
-    let Some(required_arch_capabilities_msr) =
-        find_arch_capabilities(&required_updates.feature_msrs)
-    else {
+    let Some(required_arch_capabilities_msr) = find_arch_capabilities(required_updates) else {
         return Ok(());
     };
 
