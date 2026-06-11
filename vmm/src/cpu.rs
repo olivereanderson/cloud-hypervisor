@@ -545,6 +545,7 @@ impl Vcpu {
         #[cfg(target_arch = "x86_64")] topology: (u16, u16, u16, u16),
         #[cfg(target_arch = "x86_64")] nested: bool,
         #[cfg(feature = "igvm")] igvm_enabled: bool,
+        #[cfg(feature = "tdx")] tdx_enabled: bool,
     ) -> Result<()> {
         #[cfg(target_arch = "aarch64")]
         {
@@ -582,6 +583,8 @@ impl Vcpu {
                 topology,
                 nested,
                 setup_registers,
+                #[cfg(feature = "tdx")]
+                tdx_enabled,
             )
             .map_err(Error::VcpuConfiguration)?;
         }
@@ -733,6 +736,8 @@ pub struct CpuManager {
     hypervisor: Arc<dyn hypervisor::Hypervisor>,
     #[cfg(feature = "sev_snp")]
     sev_snp_enabled: bool,
+    #[cfg(feature = "tdx")]
+    tdx_enabled: bool,
     // State of the core scheduling group leader election (VM mode).
     core_scheduling_group_leader: Arc<AtomicI32>,
     #[cfg(feature = "igvm")]
@@ -936,7 +941,7 @@ impl CpuManager {
                     profile: config.profile,
                 },
                 #[cfg(feature = "tdx")]
-                &kvm_vm.fd.as_raw_fd(),
+                Some(&kvm_vm.fd.as_raw_fd()),
             )
             .map_err(Error::CommonCpuId)?
         };
@@ -977,6 +982,8 @@ impl CpuManager {
             hypervisor,
             #[cfg(feature = "sev_snp")]
             sev_snp_enabled,
+            #[cfg(feature = "tdx")]
+            tdx_enabled,
             core_scheduling_group_leader: Arc::new(AtomicI32::new(
                 CoreSchedulingLeader::Initial as i32,
             )),
@@ -1090,6 +1097,8 @@ impl CpuManager {
             self.config.nested,
             #[cfg(feature = "igvm")]
             self.igvm_enabled,
+            #[cfg(feature = "tdx")]
+            self.tdx_enabled,
         )?;
 
         #[cfg(target_arch = "aarch64")]
