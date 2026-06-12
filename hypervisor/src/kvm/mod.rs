@@ -158,10 +158,13 @@ use crate::TimerState;
 #[cfg(target_arch = "aarch64")]
 use crate::arch::aarch64::{get_cntfrq, regs};
 #[cfg(feature = "tdx")]
+use crate::cpu::{TdxInitGuestPhysAddr, TdxInitHostPhysAddr, TdxInitMemoryRegionSize};
+#[cfg(feature = "tdx")]
 use crate::kvm::tdx::{
-    KvmTdxCmd, KvmTdxExit, KvmTdxInitMemRegion, KvmTdxInitVm, TDX_MAX_NR_CPUID_CONFIGS, TdxCommand,
-    kvm_cpuid2,
+    KvmTdxCmd, KvmTdxInitMemRegion, KvmTdxInitVm, TDX_MAX_NR_CPUID_CONFIGS, TdxCommand, kvm_cpuid2,
 };
+#[cfg(feature = "tdx")]
+pub use crate::kvm::tdx::{KvmTdxExit, KvmTdxExitU};
 #[cfg(feature = "tdx")]
 pub use crate::kvm::tdx::{TdxExitDetails, TdxExitStatus, kvm_tdx_capabilities};
 #[cfg(target_arch = "x86_64")]
@@ -3553,15 +3556,15 @@ impl cpu::Vcpu for KvmVcpu {
     #[cfg(feature = "tdx")]
     unsafe fn tdx_init_memory_region(
         &self,
-        host_address: *mut u8,
-        guest_address: u64,
-        size: usize,
+        host_address: TdxInitHostPhysAddr,
+        guest_address: TdxInitGuestPhysAddr,
+        size: TdxInitMemoryRegionSize,
         measure: bool,
     ) -> cpu::Result<()> {
         let data = KvmTdxInitMemRegion {
-            source_addr: host_address as _,
-            gpa: guest_address,
-            nr_pages: (size / 4096).try_into().unwrap(),
+            source_addr: host_address.raw_value(),
+            gpa: guest_address.raw_value(),
+            nr_pages: size.nr_pages()?,
         };
 
         tdx_command(
