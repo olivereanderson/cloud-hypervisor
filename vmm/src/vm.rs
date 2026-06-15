@@ -459,11 +459,11 @@ impl VmOpsHandler {
             .ok_or(HypervisorVmError::UnknownTdxVmCall)?;
 
         for region in self.guest_ram_mappings.read().unwrap().iter() {
-            let region_start = region.gpa;
-            let region_end = region.gpa + region.size;
+            let region_start = region.gpa();
+            let region_end = region.gpa() + region.size();
 
             if region_start <= start && end <= region_end {
-                let guest_memfd = region.guest_memfd;
+                let guest_memfd = region.guest_memfd();
                 if guest_memfd.is_none() {
                     /*
                      * Because vMMIO region must be shared, guest TD may convert vMMIO
@@ -508,10 +508,10 @@ impl VmOpsHandler {
                     .set_memory_attributes(attr)
                     .map_err(|e| HypervisorVmError::CreateUserMemory(e.into()))?;
 
-                let backing_page_size = if region.backing_page_size == 0 {
+                let backing_page_size = if region.backing_page_size() == 0 {
                     page_size
                 } else {
-                    region.backing_page_size
+                    region.backing_page_size()
                 };
 
                 if to_private {
@@ -525,7 +525,7 @@ impl VmOpsHandler {
                     // Best-effort discard to mirror QEMU behavior when possible.
                     if let Some(guest_memfd) = guest_memfd {
                         let offset = region
-                            .file_offset
+                            .file_offset()
                             .saturating_add(start.saturating_sub(region_start));
                         let res = unsafe {
                             libc::fallocate64(
@@ -543,7 +543,7 @@ impl VmOpsHandler {
                     }
                 } else if let Some(guest_memfd) = guest_memfd {
                     let offset = region
-                        .file_offset
+                        .file_offset()
                         .saturating_add(start.saturating_sub(region_start));
                     let res = unsafe {
                         libc::fallocate64(
