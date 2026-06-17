@@ -504,7 +504,7 @@ impl VmOpsHandler {
                     .as_any()
                     .downcast_ref::<hypervisor::kvm::KvmVm>()
                     .unwrap()
-                    .fd
+                    .fd()
                     .set_memory_attributes(attr)
                     .map_err(|e| HypervisorVmError::CreateUserMemory(e.into()))?;
 
@@ -1016,7 +1016,7 @@ impl Vm {
         vm.as_any()
             .downcast_ref::<hypervisor::kvm::KvmVm>()
             .unwrap()
-            .fd
+            .fd()
             .enable_cap(&cap)
             .unwrap();
 
@@ -2942,7 +2942,7 @@ impl Vm {
                     .unwrap()
                     .lock()
                     .unwrap()
-                    .vcpu
+                    .vcpu()
                     .tdx_init_memory_region(
                         host_address,
                         guest_address,
