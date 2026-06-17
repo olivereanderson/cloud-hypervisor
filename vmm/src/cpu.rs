@@ -27,6 +27,8 @@ use acpi_tables::{Aml, aml};
 use anyhow::anyhow;
 #[cfg(target_arch = "aarch64")]
 use arch::aarch64::cache::{CacheTopologyInfo, read_cache_topology};
+#[cfg(target_arch = "x86_64")]
+use arch::x86_64;
 use arch::{EntryPoint, NumaNodes, layout};
 #[cfg(target_arch = "aarch64")]
 use devices::gic::Gic;
@@ -47,7 +49,7 @@ use hypervisor::arch::aarch64::gic::Vgic;
 use hypervisor::arch::aarch64::regs::{ID_AA64MMFR0_EL1, TCR_EL1, TTBR1_EL1};
 #[cfg(target_arch = "x86_64")]
 use hypervisor::arch::x86::CpuIdEntry;
-#[cfg(all(target_arch = "x86_64", feature = "guest_debug"))]
+#[cfg(target_arch = "x86_64")]
 use hypervisor::arch::x86::MsrEntry;
 #[cfg(all(target_arch = "x86_64", feature = "guest_debug"))]
 use hypervisor::arch::x86::SpecialRegisters;
@@ -234,6 +236,19 @@ pub enum Error {
 
     #[error("Error enabling core scheduling")]
     CoreScheduling(#[source] io::Error),
+
+    #[error("Failed to generate feature MSRs required by the chosen CPU profile")]
+    FeatureMsrGeneration(#[source] arch::Error),
+
+    #[error(
+        "The hypervisor backend failed to set the feature MSRs required by the chosen CPU profile"
+    )]
+    SetFeatureMsrsHypervisor(#[source] hypervisor::HypervisorCpuError),
+
+    #[error(
+        "Failed to set all feature MSRs required by the chosen CPU profile: the following feature MSR could not be set: {0:#x}"
+    )]
+    SetFeatureMsrs(u32),
 }
 pub type Result<T> = result::Result<T, Error>;
 
@@ -702,6 +717,8 @@ pub struct CpuManager {
     interrupt_controller: Option<Arc<Mutex<dyn InterruptController>>>,
     #[cfg(target_arch = "x86_64")]
     cpuid: Vec<CpuIdEntry>,
+    #[cfg(target_arch = "x86_64")]
+    feature_msrs: Vec<MsrEntry>,
     #[cfg_attr(target_arch = "aarch64", allow(dead_code))]
     vm: Arc<dyn hypervisor::Vm>,
     vcpus_kill_signalled: Arc<AtomicBool>,
@@ -913,6 +930,8 @@ impl CpuManager {
             interrupt_controller: None,
             #[cfg(target_arch = "x86_64")]
             cpuid: Vec::new(),
+            #[cfg(target_arch = "x86_64")]
+            feature_msrs: Vec::new(),
             vm,
             vcpus_kill_signalled: Arc::new(AtomicBool::new(false)),
             vcpus_pause_signalled: Arc::new(AtomicBool::new(false)),
@@ -965,6 +984,21 @@ impl CpuManager {
         Ok(())
     }
 
+    #[cfg(target_arch = "x86_64")]
+    /// Obtain and store feature MSRs to be set upon vCPU creation.
+    ///
+    /// This method is effectively a no-op if the selected CPU profile is "Host".
+    pub fn prepare_feature_msr_updates(&mut self) -> Result<()> {
+        let cpu_profile = self.config.profile;
+        if let Some(feature_msrs) =
+            x86_64::generate_required_feature_msr_updates(self.hypervisor.as_ref(), cpu_profile)
+                .map_err(Error::FeatureMsrGeneration)?
+        {
+            self.feature_msrs = feature_msrs;
+        }
+        Ok(())
+    }
+
     fn create_vcpu(
         &mut self,
         cpu_id: u32,
@@ -1010,6 +1044,23 @@ impl CpuManager {
                 .map_err(|e| Error::VcpuCreate(anyhow!("Could not set the vCPU state {e:?}")))?;
 
             vcpu.saved_state = Some(state);
+        }
+
+        #[cfg(target_arch = "x86_64")]
+        {
+            // If a non-host CPU profile has been selected then we need to set the required feature MSRs
+            let num_feature_msrs = self.feature_msrs.len();
+            if num_feature_msrs > 0 {
+                let num_feature_msrs_set = vcpu
+                    .vcpu
+                    .set_msrs(&self.feature_msrs)
+                    .map_err(Error::SetFeatureMsrsHypervisor)?;
+                if num_feature_msrs_set < num_feature_msrs {
+                    return Err(Error::SetFeatureMsrs(
+                        self.feature_msrs[num_feature_msrs_set].index,
+                    ));
+                }
+            }
         }
 
         let vcpu = Arc::new(Mutex::new(vcpu));
