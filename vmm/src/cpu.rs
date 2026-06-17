@@ -27,6 +27,8 @@ use acpi_tables::{Aml, aml};
 use anyhow::anyhow;
 #[cfg(target_arch = "aarch64")]
 use arch::aarch64::cache::{CacheTopologyInfo, read_cache_topology};
+#[cfg(target_arch = "x86_64")]
+use arch::x86_64::cpu_profile::msr_adjustments::RequiredMsrUpdates;
 use arch::{EntryPoint, NumaNodes, layout};
 #[cfg(target_arch = "aarch64")]
 use devices::gic::Gic;
@@ -47,7 +49,7 @@ use hypervisor::arch::aarch64::gic::Vgic;
 use hypervisor::arch::aarch64::regs::{ID_AA64MMFR0_EL1, TCR_EL1, TTBR1_EL1};
 #[cfg(target_arch = "x86_64")]
 use hypervisor::arch::x86::CpuIdEntry;
-#[cfg(all(target_arch = "x86_64", feature = "guest_debug"))]
+#[cfg(target_arch = "x86_64")]
 use hypervisor::arch::x86::MsrEntry;
 #[cfg(all(target_arch = "x86_64", feature = "guest_debug"))]
 use hypervisor::arch::x86::SpecialRegisters;
@@ -234,6 +236,11 @@ pub enum Error {
 
     #[error("Error enabling core scheduling")]
     CoreScheduling(#[source] io::Error),
+
+    #[error(
+        "Failed to prepare MSR updates required by the chosen CPU profile: one or more MSR compatibility checks failed"
+    )]
+    MsrUpdateCompatibilityCheck(#[source] arch::Error),
 }
 pub type Result<T> = result::Result<T, Error>;
 
@@ -702,6 +709,8 @@ pub struct CpuManager {
     interrupt_controller: Option<Arc<Mutex<dyn InterruptController>>>,
     #[cfg(target_arch = "x86_64")]
     cpuid: Vec<CpuIdEntry>,
+    #[cfg(target_arch = "x86_64")]
+    feature_msrs: Vec<MsrEntry>,
     #[cfg_attr(target_arch = "aarch64", allow(dead_code))]
     vm: Arc<dyn hypervisor::Vm>,
     vcpus_kill_signalled: Arc<AtomicBool>,
@@ -913,6 +922,8 @@ impl CpuManager {
             interrupt_controller: None,
             #[cfg(target_arch = "x86_64")]
             cpuid: Vec::new(),
+            #[cfg(target_arch = "x86_64")]
+            feature_msrs: Vec::new(),
             vm,
             vcpus_kill_signalled: Arc::new(AtomicBool::new(false)),
             vcpus_pause_signalled: Arc::new(AtomicBool::new(false)),
@@ -962,6 +973,34 @@ impl CpuManager {
             .map_err(Error::CommonCpuId)?
         };
 
+        Ok(())
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    /// Prepares the CpuManager for MSR related updates associated with the chosen CPU profile (if any).
+    ///
+    /// This includes:
+    /// - Storing feature MSRs to be set upon vCPU configuration.
+    /// - Replacing the VM's MSR state buffer to avoid attempts of restoring MSRs that are incompatible
+    ///   with the CPU profile.
+    ///
+    /// This method is effectively a no-op if the selected CPU profile is "Host".
+    pub fn prepare_msr_updates(&mut self) -> Result<()> {
+        let cpu_profile = self.config.profile;
+        let kvm_hyperv = self.config.kvm_hyperv;
+        if let Some(RequiredMsrUpdates {
+            feature_msrs,
+            msr_state_buffer,
+        }) = arch::x86_64::generate_required_msr_updates(
+            self.hypervisor.as_ref(),
+            cpu_profile,
+            kvm_hyperv,
+        )
+        .map_err(Error::MsrUpdateCompatibilityCheck)?
+        {
+            self.feature_msrs = feature_msrs;
+            self.vm.replace_msr_state_buffer(msr_state_buffer);
+        }
         Ok(())
     }
 
