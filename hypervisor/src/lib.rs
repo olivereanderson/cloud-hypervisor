@@ -56,7 +56,7 @@ use anyhow::anyhow;
 use concat_idents::concat_idents;
 #[cfg(target_arch = "x86_64")]
 pub use cpu::CpuVendor;
-pub use cpu::{HypervisorCpuError, Vcpu, VmExit};
+pub use cpu::{HypervisorCpuError, SetStateReport, Vcpu, VmExit};
 pub use device::HypervisorDeviceError;
 #[cfg(all(feature = "kvm", target_arch = "aarch64"))]
 pub use kvm::aarch64;

@@ -1050,9 +1050,39 @@ impl CpuManager {
                 vcpu.finalize_sve()?;
             }
 
-            vcpu.vcpu
+            // Note that in the case of CPU profiles we can only trust
+            // compatibility with the profile if `set_state` manages to set all
+            // feature MSRs.
+            let set_state_result = vcpu
+                .vcpu
                 .set_state(&state)
-                .map_err(|e| Error::VcpuCreate(anyhow!("Could not set the vCPU state {e:?}")))?;
+                .map_err(|e| Error::VcpuCreate(anyhow!("Could not set the vCPU state {e:?}")));
+
+            #[cfg(target_arch = "x86_64")]
+            {
+                let report = set_state_result?;
+                let mut is_err = false;
+
+                for feature_msr in &self.feature_msrs {
+                    let msr_address = feature_msr.index;
+                    if report.faulty_msrs.contains(&msr_address) {
+                        is_err = true;
+                        error!(
+                            "Unable to restore feature MSR: register address={msr_address:#x}, value={:#x}",
+                            feature_msr.data
+                        );
+                    }
+                }
+                if is_err {
+                    return Err(Error::VcpuCreate(anyhow!(
+                        "Unable to restore feature MSRs required by the chosen CPU profile"
+                    )));
+                }
+            }
+            #[cfg(not(target_arch = "x86_64"))]
+            {
+                set_state_result?;
+            }
 
             vcpu.saved_state = Some(state);
         }

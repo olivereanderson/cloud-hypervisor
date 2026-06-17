@@ -69,6 +69,7 @@ use crate::arch::aarch64::gic::{Vgic, VgicConfig};
 use crate::arch::riscv64::aia::{Vaia, VaiaConfig};
 #[cfg(target_arch = "aarch64")]
 use crate::arm64_core_reg_id;
+use crate::cpu::SetStateReport;
 #[cfg(target_arch = "riscv64")]
 use crate::riscv64::aia::KvmAiaImsics;
 #[cfg(target_arch = "riscv64")]
@@ -3346,7 +3347,7 @@ impl cpu::Vcpu for KvmVcpu {
     /// let state = vcpu.state().unwrap();
     /// vcpu.set_state(&state).unwrap();
     /// ```
-    fn set_state(&self, state: &CpuState) -> cpu::Result<()> {
+    fn set_state(&self, state: &CpuState) -> cpu::Result<SetStateReport> {
         let state: VcpuKvmState = state.clone().into();
         self.set_cpuid2(&state.cpuid)?;
         self.set_mp_state(state.mp_state.into())?;
@@ -3381,14 +3382,14 @@ impl cpu::Vcpu for KvmVcpu {
         // MSRs as possible, even if some MSRs are not supported.
         let expected_num_msrs = state.msrs.len();
         let num_msrs = self.set_msrs(&state.msrs)?;
+        let mut faulty_msrs = Vec::new();
         if num_msrs != expected_num_msrs {
             let mut faulty_msr_index = num_msrs;
-
             loop {
-                warn!(
-                    "Detected faulty MSR 0x{:x} while setting MSRs",
-                    state.msrs[faulty_msr_index].index
-                );
+                let msr_address = state.msrs[faulty_msr_index].index;
+                faulty_msrs.push(msr_address);
+
+                warn!("Detected faulty MSR {msr_address:#x} while setting MSRs");
 
                 // Skip the first bad MSR
                 let start_pos = faulty_msr_index + 1;
@@ -3407,14 +3408,14 @@ impl cpu::Vcpu for KvmVcpu {
 
         self.set_vcpu_events(&state.vcpu_events)?;
 
-        Ok(())
+        Ok(SetStateReport { faulty_msrs })
     }
 
     ///
     /// Restore the previously saved AArch64 CPU state
     ///
     #[cfg(target_arch = "aarch64")]
-    fn set_state(&self, state: &CpuState) -> cpu::Result<()> {
+    fn set_state(&self, state: &CpuState) -> cpu::Result<SetStateReport> {
         let state: VcpuKvmState = state.clone().into();
 
         // Set core registers
@@ -3443,14 +3444,14 @@ impl cpu::Vcpu for KvmVcpu {
 
         self.set_mp_state(state.mp_state.into())?;
 
-        Ok(())
+        Ok(SetStateReport {})
     }
 
     #[cfg(target_arch = "riscv64")]
     ///
     /// Restore the previously saved RISC-V 64-bit CPU state
     ///
-    fn set_state(&self, state: &CpuState) -> cpu::Result<()> {
+    fn set_state(&self, state: &CpuState) -> cpu::Result<SetStateReport> {
         let state: VcpuKvmState = state.clone().into();
         // Set core registers
         self.set_regs(&state.core_regs.into())?;
@@ -3463,7 +3464,7 @@ impl cpu::Vcpu for KvmVcpu {
 
         self.set_mp_state(state.mp_state.into())?;
 
-        Ok(())
+        Ok(SetStateReport {})
     }
 
     ///

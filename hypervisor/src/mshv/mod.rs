@@ -43,6 +43,8 @@ use crate::arch::emulator::PlatformEmulator;
 use crate::arch::x86::emulator::Emulator;
 #[cfg(target_arch = "x86_64")]
 use crate::arch::x86::{LapicState, SpecialRegisters};
+#[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+use crate::cpu::SetStateReport;
 #[cfg(target_arch = "aarch64")]
 use crate::mshv::aarch64::emulator;
 use crate::mshv::emulator::MshvEmulatorContext;
@@ -1469,7 +1471,7 @@ impl cpu::Vcpu for MshvVcpu {
     ///
     /// Set CPU state for x86_64 guest.
     ///
-    fn set_state(&self, state: &CpuState) -> cpu::Result<()> {
+    fn set_state(&self, state: &CpuState) -> cpu::Result<SetStateReport> {
         let mut state: VcpuMshvState = state.clone().into();
         self.set_msrs(&state.msrs)?;
         self.set_vcpu_events(&state.vcpu_events)?;
@@ -1490,14 +1492,17 @@ impl cpu::Vcpu for MshvVcpu {
         self.fd
             .set_all_vp_state_components(&mut state.vp_states)
             .map_err(|e| cpu::HypervisorCpuError::SetAllVpStateComponents(e.into()))?;
-        Ok(())
+
+        Ok(SetStateReport {
+            faulty_msrs: Vec::new(),
+        })
     }
 
     #[cfg(target_arch = "aarch64")]
     ///
     /// Set CPU state for aarch64 guest.
     ///
-    fn set_state(&self, _state: &CpuState) -> cpu::Result<()> {
+    fn set_state(&self, _state: &CpuState) -> cpu::Result<SetStateReport> {
         unimplemented!()
     }
 
