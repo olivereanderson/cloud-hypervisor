@@ -104,6 +104,8 @@ pub(crate) mod sev;
 mod sigwinch_listener;
 pub mod sparse;
 mod sync_utils;
+#[cfg(feature = "tdx")]
+mod tdx_qgs;
 mod uffd;
 mod userfaultfd;
 pub mod vm;
