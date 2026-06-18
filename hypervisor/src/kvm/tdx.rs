@@ -12,7 +12,7 @@ pub(crate) enum TdxCommand {
 }
 
 pub enum TdxExitDetails {
-    GetQuote,
+    GetQuote { gpa: u64, size: u64 },
     SetupEventNotifyInterrupt,
 }
 
