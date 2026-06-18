@@ -316,11 +316,14 @@ fn create_vmm_ioctl_seccomp_rule_iommufd() -> Result<Vec<SeccompRule>, BackendEr
 fn create_vmm_ioctl_seccomp_rule_hypervisor(
     hypervisor_type: HypervisorType,
 ) -> Result<Vec<SeccompRule>, BackendError> {
+    #[allow(unreachable_patterns)]
     match hypervisor_type {
         #[cfg(feature = "kvm")]
         HypervisorType::Kvm => create_vmm_ioctl_seccomp_rule_common_kvm(),
         #[cfg(feature = "mshv")]
         HypervisorType::Mshv => create_vmm_ioctl_seccomp_rule_common_mshv(),
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("unsupported hypervisor type for vmm ioctl seccomp rules"),
     }
 }
 
@@ -555,11 +558,14 @@ fn create_vmm_ioctl_seccomp_rule_mshv() -> Result<Vec<SeccompRule>, BackendError
 fn create_vmm_ioctl_seccomp_rule(
     hypervisor_type: HypervisorType,
 ) -> Result<Vec<SeccompRule>, BackendError> {
+    #[allow(unreachable_patterns)]
     match hypervisor_type {
         #[cfg(feature = "kvm")]
         HypervisorType::Kvm => create_vmm_ioctl_seccomp_rule_kvm(),
         #[cfg(feature = "mshv")]
         HypervisorType::Mshv => create_vmm_ioctl_seccomp_rule_mshv(),
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("unsupported hypervisor type for vcpu ioctl seccomp rules"),
     }
 }
 
@@ -852,11 +858,14 @@ fn create_vcpu_ioctl_seccomp_rule_mshv() -> Result<Vec<SeccompRule>, BackendErro
 fn create_vcpu_ioctl_seccomp_rule_hypervisor(
     hypervisor_type: HypervisorType,
 ) -> Result<Vec<SeccompRule>, BackendError> {
+    #[allow(unreachable_patterns)]
     match hypervisor_type {
         #[cfg(feature = "kvm")]
         HypervisorType::Kvm => create_vcpu_ioctl_seccomp_rule_kvm(),
         #[cfg(feature = "mshv")]
         HypervisorType::Mshv => create_vcpu_ioctl_seccomp_rule_mshv(),
+        #[allow(unreachable_patterns)]
+        _ => unreachable!("unsupported hypervisor type for vcpu ioctl seccomp rules"),
     }
 }
 
