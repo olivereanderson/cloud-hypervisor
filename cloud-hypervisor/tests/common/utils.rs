@@ -524,6 +524,7 @@ pub(crate) fn setup_ovs_dpdk_guests(
 
 pub(crate) enum FwType {
     Ovmf,
+    Tdvf,
     RustHypervisorFirmware,
 }
 
@@ -538,6 +539,7 @@ pub(crate) fn fw_path(_fw_type: FwType) -> String {
     {
         match _fw_type {
             FwType::Ovmf => fw_path.push(OVMF_NAME),
+            FwType::Tdvf => fw_path.push(TDVF_NAME),
             FwType::RustHypervisorFirmware => fw_path.push("hypervisor-fw"),
         }
     }

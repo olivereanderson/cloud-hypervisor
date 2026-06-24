@@ -1671,8 +1671,11 @@ pub(crate) fn _test_simple_launch(guest: &Guest) {
 
 pub(crate) fn _test_multi_cpu(guest: &Guest) {
     let mut cmd = GuestCommand::new(guest);
+    // TODO: Do we need to specify max_phys_bits here? (Don't we have a default value)
     let cpus = if guest.vm_type == GuestVmType::Confidential {
         "boot=2"
+    } else if guest.vm_type == GuestVmType::Tdx {
+        "boot=2,max_phys_bits=52"
     } else {
         "boot=2,max=4"
     };

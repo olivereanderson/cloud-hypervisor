@@ -1468,6 +1468,13 @@ impl Guest {
                     "initramfs": false,
                 });
             }
+        } else if self.vm_type == GuestVmType::Tdx {
+            body["cpus"]["max_phys_bits"] = serde_json::json!(52);
+            body["platform"] = serde_json::json!({"tdx": true});
+            body["payload"] = serde_json::json!({
+            "firmware": self.kernel_path.as_deref().unwrap(),
+            "cmdline": self.kernel_cmdline.as_deref().unwrap(),
+            });
         } else {
             body["payload"] = serde_json::json!({
             "kernel": self.kernel_path.as_deref().unwrap(),
@@ -1823,6 +1830,14 @@ impl Guest {
         )
     }
 
+    pub fn default_cpus_with_phys_bits(&self) -> String {
+        format!(
+            "boot={},max_phys_bits=52{}",
+            self.num_cpu,
+            if self.nested { "" } else { ",nested=off" }
+        )
+    }
+
     pub fn default_memory_string(&self) -> String {
         format!("size={}", self.mem_size_str)
     }
@@ -1844,6 +1859,8 @@ impl Guest {
             "512M" => {
                 if self.vm_type == GuestVmType::Confidential {
                     407_000
+                } else if self.vm_type == GuestVmType::Tdx {
+                    380_000
                 } else {
                     400_000
                 }
@@ -1851,6 +1868,8 @@ impl Guest {
             "1G" => {
                 if self.vm_type == GuestVmType::Confidential {
                     920_000
+                } else if self.vm_type == GuestVmType::Tdx {
+                    900_000
                 } else {
                     960_000
                 }
@@ -1942,6 +1961,14 @@ impl GuestFactory {
     pub fn new_confidential_guest_factory() -> Self {
         Self {
             vm_type: GuestVmType::Confidential,
+            boot_timeout: DEFAULT_CVM_TCP_LISTENER_TIMEOUT,
+            nested: false,
+        }
+    }
+
+    pub fn new_tdx_guest_factory() -> Self {
+        Self {
+            vm_type: GuestVmType::Tdx,
             boot_timeout: DEFAULT_CVM_TCP_LISTENER_TIMEOUT,
             nested: false,
         }
@@ -2169,6 +2196,14 @@ impl<'a> GuestCommand<'a> {
                     }
                 ),
             ]);
+        } else if self.guest.vm_type == GuestVmType::Tdx {
+            self.command.args(["--platform", "tdx=on"]);
+            if let Some(kernel) = &self.guest.kernel_path {
+                self.command.args(["--firmware", kernel.as_str()]);
+            }
+            if let Some(cmdline) = &self.guest.kernel_cmdline {
+                self.command.args(["--cmdline", cmdline]);
+            }
         } else if let Some(kernel) = &self.guest.kernel_path {
             self.command.args(["--kernel", kernel.as_str()]);
             if let Some(cmdline) = &self.guest.kernel_cmdline {
@@ -2187,7 +2222,11 @@ impl<'a> GuestCommand<'a> {
     }
 
     pub fn default_cpus(&mut self) -> &mut Self {
-        self.args(["--cpus", self.guest.default_cpus_string().as_str()])
+        if self.guest.vm_type == GuestVmType::Tdx {
+            self.args(["--cpus", self.guest.default_cpus_with_phys_bits().as_str()])
+        } else {
+            self.args(["--cpus", self.guest.default_cpus_string().as_str()])
+        }
     }
 
     pub fn default_cpus_with_affinity(&mut self) -> &mut Self {
@@ -2636,6 +2675,7 @@ pub enum GuestVmType {
     #[default]
     Regular,
     Confidential,
+    Tdx,
 }
 
 impl FromStr for GuestVmType {
@@ -2645,6 +2685,7 @@ impl FromStr for GuestVmType {
         match s {
             "regular" => Ok(GuestVmType::Regular),
             "confidential" => Ok(GuestVmType::Confidential),
+            "tdx" => Ok(GuestVmType::Tdx),
             _ => Err(()),
         }
     }
@@ -2655,6 +2696,7 @@ impl Display for GuestVmType {
         match self {
             GuestVmType::Regular => write!(f, "regular"),
             GuestVmType::Confidential => write!(f, "confidential"),
+            GuestVmType::Tdx => write!(f, "tdx"),
         }
     }
 }
@@ -2770,6 +2812,7 @@ pub mod x86_64 {
         "jammy-server-cloudimg-amd64-custom-20241017-0-backing-raw.qcow2";
     pub const WINDOWS_IMAGE_NAME: &str = "windows-server-2025-amd64-1.raw";
     pub const OVMF_NAME: &str = "CLOUDHV.fd";
+    pub const TDVF_NAME: &str = "OVMF.fd";
     pub const GREP_SERIAL_IRQ_CMD: &str = "grep -c 'IO-APIC.*ttyS0' /proc/interrupts || true";
 }
 
