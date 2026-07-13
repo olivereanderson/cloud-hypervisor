@@ -33,6 +33,8 @@ use crate::arch::aarch64::gic::{Vgic, VgicConfig};
 use crate::arch::riscv64::aia::{Vaia, VaiaConfig};
 #[cfg(feature = "tdx")]
 use crate::arch::x86::CpuIdEntry;
+#[cfg(target_arch = "x86_64")]
+use crate::arch::x86::MsrEntry;
 use crate::cpu::Vcpu;
 use crate::{ClockRestoreMode, ClockState, IoEventAddress, IrqRoutingEntry};
 
@@ -510,6 +512,12 @@ pub trait Vm: Send + Sync + Any {
     fn enable_x2apic_api(&self) -> Result<()> {
         unimplemented!("x2Apic is only supported on KVM/Linux hosts")
     }
+
+    #[cfg(target_arch = "x86_64")]
+    /// Overwrite the MSR buffer that is passed on to fresh vCPUs upon their creation.
+    /// The given MSR indices in `msrs` inform the vCPUs which MSRs should be considered
+    /// when retrieving vCPU state (see [`Vcpu::state`](crate::cpu::Vcpu::state)).
+    fn replace_msr_state_buffer(&self, msrs: Vec<MsrEntry>);
 }
 
 pub trait VmOps: Send + Sync {

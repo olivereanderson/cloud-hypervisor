@@ -41,6 +41,8 @@ use std::{fs, io, result};
 #[cfg(target_arch = "x86_64")]
 use anyhow::Context;
 use anyhow::anyhow;
+#[cfg(target_arch = "x86_64")]
+use arc_swap::ArcSwap;
 #[cfg(feature = "sev_snp")]
 use igvm::snp_defs::{SevSelector, SevVmsa};
 use kvm_bindings::fam_wrappers::KvmIrqRouting;
@@ -634,7 +636,7 @@ struct KvmMemorySlot {
 pub struct KvmVm {
     fd: Arc<VmFd>,
     #[cfg(target_arch = "x86_64")]
-    msrs: Vec<MsrEntry>,
+    msrs: ArcSwap<Vec<MsrEntry>>,
     #[cfg(feature = "sev_snp")]
     sev_fd: Option<x86_64::sev::SevFd>,
     #[cfg(feature = "sev_snp")]
@@ -924,7 +926,7 @@ impl vm::Vm for KvmVm {
         let vcpu = KvmVcpu {
             fd,
             #[cfg(target_arch = "x86_64")]
-            msrs: self.msrs.clone(),
+            msrs: self.msrs.load().as_ref().clone(),
             vm_ops,
             #[cfg(target_arch = "x86_64")]
             hyperv_synic: AtomicBool::new(false),
@@ -1563,6 +1565,11 @@ impl vm::Vm for KvmVm {
     fn as_any(&self) -> &dyn Any {
         self
     }
+
+    #[cfg(target_arch = "x86_64")]
+    fn replace_msr_state_buffer(&self, msrs: Vec<MsrEntry>) {
+        self.msrs.store(msrs.into());
+    }
 }
 
 #[cfg(feature = "tdx")]
@@ -1785,7 +1792,7 @@ impl hypervisor::Hypervisor for KvmHypervisor {
 
             Ok(Arc::new(KvmVm {
                 fd: Arc::new(fd),
-                msrs,
+                msrs: ArcSwap::new(msrs.into()),
                 dirty_log_slots: RwLock::new(HashMap::new()),
                 #[cfg(feature = "sev_snp")]
                 sev_fd,

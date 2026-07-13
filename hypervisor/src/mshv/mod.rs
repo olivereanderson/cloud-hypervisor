@@ -2588,4 +2588,9 @@ impl vm::Vm for MshvVm {
         }
         Ok(())
     }
+
+    #[cfg(target_arch = "x86_64")]
+    fn replace_msr_state_buffer(&self, msrs: Vec<MsrEntry>) {
+        self.msrs.store(msrs.into());
+    }
 }
