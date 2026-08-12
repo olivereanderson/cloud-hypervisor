@@ -1690,7 +1690,8 @@ impl Vm {
                 // timer fires ~40x too fast, causing an interrupt storm.
                 // This mirrors QEMU's TDX_APIC_BUS_CYCLES_NS handling.
                 const TDX_APIC_BUS_CYCLES_NS: u64 = 40;
-                vm.enable_apic_bus_cycles_ns(TDX_APIC_BUS_CYCLES_NS).unwrap();
+                vm.enable_apic_bus_cycles_ns(TDX_APIC_BUS_CYCLES_NS)
+                    .unwrap();
             }
         }
 
