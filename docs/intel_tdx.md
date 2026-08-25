@@ -70,7 +70,7 @@ guest image containing the TDX enlightened kernel.
 ./cloud-hypervisor \
     --platform tdx=on \
     --firmware edk2/Build/IntelTdx/RELEASE_GCC5/FV/OVMF.fd \
-    --cpus boot=1,max_phys_bits=52 \
+    --cpus boot=1 \
     --memory size=1G \
     --serial tty \
     --console off \
@@ -84,7 +84,7 @@ firmware:
 ./cloud-hypervisor \
     --platform tdx=on \
     --firmware edk2/Build/IntelTdx/DEBUG_GCC5/FV/OVMF.fd \
-    --cpus boot=1,max_phys_bits=52 \
+    --cpus boot=1 \
     --memory size=1G \
     --disk path=tdx_guest_img \
     --serial tty \
@@ -139,7 +139,7 @@ option as well.
     --firmware td-shim/target/release/final.bin \
     --kernel bzImage \
     --cmdline "root=/dev/vda1 rw console=ttyS0 ignore_loglevel earlyprintk=ttyS0" \
-    --cpus boot=1,max_phys_bits=52  \
+    --cpus boot=1  \
     --memory size=1G \
     --disk path=tdx_guest_img
 ```
@@ -153,7 +153,7 @@ TDShim:
     --firmware td-shim/target/debug/final.bin \
     --kernel bzImage \
     --cmdline "root=/dev/vda1 rw console=ttyS0 ignore_loglevel earlyprintk=ttyS0" \
-    --cpus boot=1,max_phys_bits=52  \
+    --cpus boot=1  \
     --memory size=1G \
     --disk path=tdx_guest_img
 ```

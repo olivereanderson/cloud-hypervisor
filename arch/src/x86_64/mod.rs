@@ -853,8 +853,6 @@ fn required_common_cpuid_updates(
 
     CpuidPatch::patch_cpuid(&mut cpuid, &cpuid_patches);
 
-    let la57_enabled = CpuidPatch::is_feature_enabled(&cpuid, 7, 0, CpuidReg::ECX, 16);
-
     // Update some existing CPUID
     for entry in cpuid.as_mut_slice().iter_mut() {
         #[allow(unused_unsafe)]
@@ -918,18 +916,9 @@ fn required_common_cpuid_updates(
             }
             // Set CPU physical bits and guest physical bits
             0x8000_0008 => {
-                // TODO: This is what we do upstream. How does that fit in with this change?
-                // entry.eax = (entry.eax & 0xff00_ff00)
-                //     | (config.phys_bits as u32 & 0xff)
-                //     | ((config.phys_bits as u32 & 0xff) << 16);
-                let virt_addr_width = if la57_enabled { 57 } else { 48 };
-                let mut guest_phys_bits = (entry.eax >> 16) & 0xff;
-                if guest_phys_bits > config.phys_bits as u32 {
-                    guest_phys_bits = config.phys_bits as u32;
-                }
-                entry.eax = (config.phys_bits as u32 & 0xff)
-                    | (virt_addr_width << 8)
-                    | (guest_phys_bits << 16);
+                entry.eax = (entry.eax & 0xff00_ff00)
+                    | (config.phys_bits as u32 & 0xff)
+                    | ((config.phys_bits as u32 & 0xff) << 16);
             }
             0x4000_0001 => {
                 // Enable KVM_FEATURE_MSI_EXT_DEST_ID. This allows the guest to target

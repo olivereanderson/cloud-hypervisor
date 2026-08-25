@@ -3236,6 +3236,16 @@ impl VmConfig {
             if tdx_enabled && (self.cpus.max_vcpus != self.cpus.boot_vcpus) {
                 return Err(ValidationError::TdxNoCpuHotplug);
             }
+            if tdx_enabled {
+                // For TDX the guest physical address width (GPAW) is fixed at:
+                // 48 - (GPAW-48, 4-level EPT)
+                // 52 - (GPAW-52, 5-level EPT)
+                if self.cpus.max_phys_bits < 52 {
+                    self.cpus.max_phys_bits = 48;
+                } else {
+                    self.cpus.max_phys_bits = 52;
+                }
+            }
         }
 
         #[cfg(feature = "sev_snp")]
@@ -5864,6 +5874,26 @@ id=\"{id}\",pci_segment={pci_segment},queue_sizes={queue_sizes}"
         };
 
         valid_config.validate().unwrap();
+
+        #[cfg(feature = "tdx")]
+        {
+            let mut tdx_config = valid_config.clone();
+            tdx_config.cpus.max_phys_bits = 51;
+            tdx_config.platform = Some(PlatformConfig {
+                tdx: true,
+                ..platform_fixture()
+            });
+            if let Some(payload) = tdx_config.payload.as_mut() {
+                payload.firmware = Some(PathBuf::from("/path/to/firmware"));
+            }
+
+            tdx_config.validate().unwrap();
+            assert_eq!(tdx_config.cpus.max_phys_bits, 48);
+
+            tdx_config.cpus.max_phys_bits = 52;
+            tdx_config.validate().unwrap();
+            assert_eq!(tdx_config.cpus.max_phys_bits, 52);
+        }
 
         let mut invalid_config = valid_config.clone();
         invalid_config.serial.common.mode = ConsoleOutputMode::Tty;
