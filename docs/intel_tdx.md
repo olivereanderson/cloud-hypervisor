@@ -158,6 +158,28 @@ TDShim:
     --disk path=tdx_guest_img
 ```
 
+### Attestation
+
+Cloud Hypervisor supports TDX quote generation from inside the guest through the host-side QGS service.
+
+#### Prerequisites
+
+1. PCCS is enabled on the host.
+2. The QGS service is enabled on the host.
+3. `CONFIG_TDX_GUEST_DRIVER` is enabled in the guest kernel, and this driver creates the `/dev/tdx_guest` device node inside the TDX VM.
+4. Refer to [software-packages](https://cc-enabling.trustedservices.intel.com/intel-sgx-sw-installation-guide-linux/03/software-packages/) to install `libtdx-attest-dev` and `libtdx-attest` in the TDX VM; these packages also install `/opt/intel/tdx-quote-generation-sample`, which can be used to generate a TDX quote.
+
+#### Cloud Hypervisor Arguments
+
+1. No additional Cloud Hypervisor arguments are required for TDX attestation, and the VMM connects automatically to the QGS UNIX socket (`/var/run/tdx-qgs/qgs.socket`).
+
+#### Quote generation and verification
+
+1. Launch the TDX VM with no special Cloud Hypervisor arguments.
+2. Run `cd /opt/intel/tdx-quote-generation-sample && make` to build `test_tdx_attest`.
+3. Run `test_tdx_attest` to generate a local quote file named `quote.dat`.
+4. (Optional) Download `quote.dat` to the host and verify it with [QuoteVerificationSample](https://github.com/intel-innersource/frameworks.security.confidential-computing.tee.dcap/tree/main-internal/SampleCode/QuoteVerificationSample).
+
 ### Guest kernel limitations
 
 #### PCI hotplug through ACPI
