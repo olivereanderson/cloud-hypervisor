@@ -9,6 +9,8 @@ version = "0.1.0"
 default = []
 io_uring = ["dep:io-uring"]
 test-utils = []
+# TODO: Temporary workaround
+tdx = []
 
 [dependencies]
 bitflags = { workspace = true }

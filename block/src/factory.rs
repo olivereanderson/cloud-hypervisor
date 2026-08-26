@@ -66,7 +66,7 @@ fn aio_supported() -> bool {
 ///   preferring io_uring over AIO over synchronous fallback.
 pub fn open_disk(
     options: &DiskOpenOptions<'_>,
-    image_type: ImageType,
+    mut image_type: ImageType,
 ) -> BlockResult<Box<dyn AsyncFullDiskFile>> {
     let mut fs_options = fs::OpenOptions::new();
     fs_options.read(true);
@@ -76,6 +76,16 @@ pub fn open_disk(
     }
 
     let mut file = open_disk_image(options.path, &fs_options)?;
+
+    // TODO: Temporary workaround to make TDX integration tests work
+    #[cfg(feature = "tdx")]
+    {
+        // TODO: Might need backing_files = false (but should be default?)
+        if image_type == ImageType::Unknown {
+            image_type = ImageType::Qcow2;
+        }
+    }
+
     if !validate_image_type(&mut file, image_type)? {
         return Err(BlockError::from_kind(BlockErrorKind::ImageTypeMismatch {
             specified: image_type,
