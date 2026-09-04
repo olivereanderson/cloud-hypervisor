@@ -1509,8 +1509,17 @@ impl vm::Vm for KvmVm {
     fn tdx_init(&self, cpuid: &[CpuIdEntry], max_vcpus: u32) -> vm::Result<()> {
         const TDX_ATTR_SEPT_VE_DISABLE: usize = 28;
 
+        // `cpuid` is shared with per-vCPU `KVM_SET_CPUID2` programming and
+        // must keep leaves the TDX module does not consider "configurable"
+        // (for example 0x8000_0008/MAXPHYADDR). `KVM_TDX_INIT_VM` accepts
+        // only configurable leaves reported by `KVM_TDX_CAPABILITIES`, so
+        // filter a copy here just for `KVM_TDX_INIT_VM`.
+        let tdx_capabilities = self.tdx_capabilities()?;
+        let mut init_vm_cpuid = cpuid.to_vec();
+        self.tdx_filter_cpuid(&mut init_vm_cpuid, &tdx_capabilities)?;
+
         let mut new_cpuid: Vec<kvm_bindings::kvm_cpuid_entry2> =
-            cpuid.iter().map(|e| (*e).into()).collect();
+            init_vm_cpuid.iter().map(|e| (*e).into()).collect();
         new_cpuid.resize(
             TDX_MAX_NR_CPUID_CONFIGS,
             kvm_bindings::kvm_cpuid_entry2::default(),
@@ -1524,8 +1533,8 @@ impl vm::Vm for KvmVm {
         // Mask them out here so Cloud Hypervisor's TDX guest CPUID matches QEMU.
         const XSTATE_CET_U_BIT: u64 = 11;
         const XSTATE_CET_S_BIT: u64 = 12;
-        let xfam = self.tdx_capabilities()?.supported_xfam
-            & !((1 << XSTATE_CET_U_BIT) | (1 << XSTATE_CET_S_BIT));
+        let xfam =
+            tdx_capabilities.supported_xfam & !((1 << XSTATE_CET_U_BIT) | (1 << XSTATE_CET_S_BIT));
 
         let data = KvmTdxInitVm {
             attributes: 1 << TDX_ATTR_SEPT_VE_DISABLE,
@@ -1535,7 +1544,7 @@ impl vm::Vm for KvmVm {
             mrownerconfig: [0; 6],
             reserved: [0; 12],
             cpuid: kvm_cpuid2 {
-                nent: cpuid.len() as u32,
+                nent: init_vm_cpuid.len() as u32,
                 padding: 0,
                 entries: new_cpuid.as_slice().try_into().unwrap(),
             },
@@ -1625,6 +1634,8 @@ fn tdx_command(
             }
             continue;
         }
+        // hw_error carries the raw TDX module (SEAMCALL) status code on failure.
+        error!("KVM TDX command failed: {e}, hw_error: {:#x}", cmd.hw_error);
         return Err(e);
     }
 }
