@@ -105,7 +105,7 @@ mod sigwinch_listener;
 pub mod sparse;
 mod sync_utils;
 #[cfg(feature = "tdx")]
-mod tdx_qgs;
+pub(crate) mod tdx_qgs;
 mod uffd;
 mod userfaultfd;
 pub mod vm;
@@ -1740,9 +1740,6 @@ impl Vmm {
                     amx,
                     profile,
                 },
-                #[cfg(feature = "tdx")]
-                // Live Migration is not supported when TDX is enabled
-                None,
             )
             .context("Error generating common cpuid")
             .map_err(MigratableError::MigrateSend)?
@@ -2058,9 +2055,6 @@ impl Vmm {
                     amx: vm_config.cpus.features.amx,
                     profile: vm_config.cpus.profile,
                 },
-                #[cfg(feature = "tdx")]
-                // Live Migration is not supported when TDX is enabled
-                None,
             )
             .context("Error generating common cpuid")
             .map_err(MigratableError::MigrateReceive)?

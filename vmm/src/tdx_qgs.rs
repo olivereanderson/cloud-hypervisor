@@ -47,10 +47,10 @@ const QGS_MSG_FRAMING_HEADER_SIZE: usize = 4; // big-endian u32 length prefix
 const QGS_IO_TIMEOUT_SECS: u64 = 30;
 
 // Quote header error codes
-pub const TDX_VP_GET_QUOTE_SUCCESS: u64 = 0;
-pub const TDX_VP_GET_QUOTE_IN_FLIGHT: u64 = u64::MAX; // -1 in two's complement
-pub const TDX_VP_GET_QUOTE_QGS_UNAVAILABLE: u64 = 0x8000_0000_0000_0001;
-pub const TDX_VP_GET_QUOTE_ERROR: u64 = 0x8000_0000_0000_0000;
+const TDX_VP_GET_QUOTE_SUCCESS: u64 = 0;
+const TDX_VP_GET_QUOTE_IN_FLIGHT: u64 = u64::MAX; // -1 in two's complement
+const TDX_VP_GET_QUOTE_QGS_UNAVAILABLE: u64 = 0x8000_0000_0000_0001;
+const TDX_VP_GET_QUOTE_ERROR: u64 = 0x8000_0000_0000_0000;
 
 // Quote header field offsets
 const HDR_STRUCTURE_VERSION_OFFSET: usize = 0;
@@ -180,7 +180,7 @@ fn extract_quote_from_qgs_response(resp: &[u8]) -> Option<&[u8]> {
 
 /// Async quote worker: connects to QGS, fetches quote, writes result back to
 /// guest shared memory, then fires the completion MSI.
-pub fn spawn_get_quote_worker(
+pub(crate) fn spawn_get_quote_worker(
     vm_ops: Arc<dyn VmOps>,
     event_notify_group: Option<Arc<dyn InterruptSourceGroup>>,
     gpa: u64,
@@ -311,7 +311,7 @@ fn write_quote_result(
 ///
 /// Returns `None` if the buffer is too small, the header is invalid, or
 /// the read fails.
-pub fn take_in_message(vm_ops: &dyn VmOps, gpa: u64, buf_size: u64) -> Option<Vec<u8>> {
+pub(crate) fn take_in_message(vm_ops: &dyn VmOps, gpa: u64, buf_size: u64) -> Option<Vec<u8>> {
     if buf_size < TDX_GET_QUOTE_HDR_SIZE as u64 {
         return None;
     }
