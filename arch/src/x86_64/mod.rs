@@ -656,6 +656,7 @@ impl CpuidFeatureEntry {
 pub fn generate_common_cpuid(
     hypervisor: &dyn hypervisor::Hypervisor,
     config: &CpuidConfig,
+    #[cfg(feature = "tdx")] vm: Option<&dyn hypervisor::Vm>,
 ) -> super::Result<Vec<CpuIdEntry>> {
     #[allow(unused_unsafe)]
     // SAFETY: cpuid called with valid leaves
@@ -683,6 +684,16 @@ pub fn generate_common_cpuid(
     let mut cpuid = hypervisor
         .get_supported_cpuid()
         .map_err(Error::CpuidGetSupported)?;
+
+    #[cfg(feature = "tdx")]
+    if config.tdx {
+        let tdx_vm = vm.ok_or_else(|| {
+            Error::TdxCapabilities(HypervisorVmError::InitializeTdx(std::io::Error::other(
+                "Missing VM instance for TDX CPUID generation",
+            )))
+        })?;
+        common_cpuid_tdx_configuration(&mut cpuid, tdx_vm)?;
+    }
 
     let is_non_host_profile = !matches!(config.profile, CpuProfile::Host);
 
@@ -1000,6 +1011,43 @@ fn required_common_cpuid_updates(
     }
 
     cpuid
+}
+
+#[cfg(feature = "tdx")]
+fn common_cpuid_tdx_configuration(
+    cpuid: &mut [CpuIdEntry],
+    vm: &dyn hypervisor::Vm,
+) -> super::Result<()> {
+    let caps = vm.tdx_capabilities().map_err(Error::TdxCapabilities)?;
+    debug!(
+        "TDX capabilities supported_attrs={:#x} supported_xfam={:#x}",
+        caps.supported_attrs, caps.supported_xfam
+    );
+
+    // XCR0-managed (user) XSAVE state components. Must include the AMX
+    // tile state components (XTILECFG bit 17, XTILEDATA bit 18); otherwise
+    // AMX is stripped from CPUID.0xD.0 and never makes it into the TD XFAM.
+    // Bits: x87(0) SSE(1) AVX(2) BNDREG(3) BNDCSR(4) OPMASK(5) ZMM_Hi256(6)
+    //       Hi16_ZMM(7) PKRU(9) XTILECFG(17) XTILEDATA(18).
+    let xcr0_mask: u64 = 0x602ff;
+    // IA32_XSS-managed (supervisor) XSAVE state components currently defined
+    // by the architecture. Listed explicitly (rather than `!xcr0_mask`) so
+    // reserved/undefined bits (19-63) are masked to zero instead of relying
+    // on `supported_xfam` to already be zero there.
+    // Bits: PT(8) ENQCMD/PASID(10) CET_U(11) CET_S(12) HDC(13) UINTR(14)
+    //       LBR(15) HWP(16).
+    let xss_mask: u64 = 0x1fd00;
+    for entry in cpuid.iter_mut().filter(|entry| entry.function == 0xd) {
+        if entry.index == 0 {
+            entry.eax &= (caps.supported_xfam as u32) & (xcr0_mask as u32);
+            entry.edx &= ((caps.supported_xfam & xcr0_mask) >> 32) as u32;
+        } else if entry.index == 1 {
+            entry.ecx &= (caps.supported_xfam as u32) & (xss_mask as u32);
+            entry.edx &= ((caps.supported_xfam & xss_mask) >> 32) as u32;
+        }
+    }
+
+    Ok(())
 }
 
 #[expect(clippy::too_many_arguments)]
