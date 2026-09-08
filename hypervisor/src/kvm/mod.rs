@@ -1495,6 +1495,32 @@ impl vm::Vm for KvmVm {
                 cpuids[nent].ebx = host_entry.ebx & entry.ebx;
                 cpuids[nent].ecx = host_entry.ecx & entry.ecx;
                 cpuids[nent].edx = host_entry.edx & entry.edx;
+                if cpuids[nent].function == 7 && cpuids[nent].index == 0 {
+                    // The TDX module rejects TSX (HLE bit 4, RTM bit 11 in EBX) and
+                    // WAITPKG (bit 5 in ECX); clear them like the kernel's
+                    // tdx_clear_unsupported_cpuid().
+                    cpuids[nent].ebx &= !((1 << 4) | (1 << 11));
+                    cpuids[nent].ecx &= !(1 << 5);
+                }
+                if cpuids[nent].function == 0x8000_0008 {
+                    // KVM repurposes CPUID.0x80000008.EAX[23:16] (normally reserved)
+                    // as the interface to select the TD's GPAW / EPT depth in
+                    // setup_tdparams_eptp_controls(): only 48 (GPAW-48, 4-level EPT)
+                    // and 52 (GPAW-52, 5-level EPT) are accepted, and any other
+                    // value fails KVM_TDX_INIT_VM with EINVAL. The guest CPUID
+                    // leaves those bits zero, so encode GPAW-48, the standard width
+                    // for TDs that do not require 5-level guest-physical addressing.
+                    // This guest_pa had been configured within generate_common_cpuid().
+                    let guest_pa = (cpuids[nent].eax >> 16) & 0xff;
+                    if guest_pa != 48 && guest_pa != 52 {
+                        return Err(vm::HypervisorVmError::InitializeTdx(std::io::Error::other(
+                            format!(
+                                "Invalid TDX GPAW {guest_pa} in CPUID.0x80000008.EAX[23:16] \
+                                 (must be 48 or 52); check the configured phys-bits"
+                            ),
+                        )));
+                    }
+                }
                 nent += 1;
             }
         }
@@ -1507,44 +1533,47 @@ impl vm::Vm for KvmVm {
     ///
     #[cfg(feature = "tdx")]
     fn tdx_init(&self, cpuid: &[CpuIdEntry], max_vcpus: u32) -> vm::Result<()> {
-        const TDX_ATTR_SEPT_VE_DISABLE: usize = 28;
-
-        // `cpuid` is shared with per-vCPU `KVM_SET_CPUID2` programming and
-        // must keep leaves the TDX module does not consider "configurable"
-        // (for example 0x8000_0008/MAXPHYADDR). `KVM_TDX_INIT_VM` accepts
-        // only configurable leaves reported by `KVM_TDX_CAPABILITIES`, so
-        // filter a copy here just for `KVM_TDX_INIT_VM`.
         let tdx_capabilities = self.tdx_capabilities()?;
-        let mut init_vm_cpuid = cpuid.to_vec();
-        self.tdx_filter_cpuid(&mut init_vm_cpuid, &tdx_capabilities)?;
+
+        // `KVM_TDX_INIT_VM` only accepts the configurable leaves reported by
+        // `KVM_TDX_CAPABILITIES`; filter a copy of `cpuid` just for this call.
+        let mut filtered_cpuid = cpuid.to_vec();
+        self.tdx_filter_cpuid(&mut filtered_cpuid, &tdx_capabilities)?;
+
+        // XFAM/ATTRIBUTES requested for the TD, inferred from the guest CPUID view.
+        let xfam = tdx_xfam_from_cpuid(&cpuid);
+        let attributes = tdx_attributes_from_cpuid(&cpuid);
+
+        // KVM's setup_tdparams() requires both to be a subset of what the module
+        // supports (it ORs in its own fixed1 bits), rejecting anything else with
+        // EINVAL; mask instead of erroring so we stay forward-compatible with
+        // modules that don't support a requested feature yet.
+        let attributes = attributes & tdx_capabilities.supported_attrs;
+        // CET is excluded so Cloud Hypervisor's guest CPUID matches QEMU (whose
+        // x86_ext_save_areas[] table has no entry for these bits, so QEMU never
+        // requests them either).
+        const XSTATE_CET_U_BIT: u64 = 11;
+        const XSTATE_CET_S_BIT: u64 = 12;
+        let xfam = xfam
+            & tdx_capabilities.supported_xfam
+            & !((1 << XSTATE_CET_U_BIT) | (1 << XSTATE_CET_S_BIT));
 
         let mut new_cpuid: Vec<kvm_bindings::kvm_cpuid_entry2> =
-            init_vm_cpuid.iter().map(|e| (*e).into()).collect();
+            filtered_cpuid.iter().map(|e| (*e).into()).collect();
         new_cpuid.resize(
             TDX_MAX_NR_CPUID_CONFIGS,
             kvm_bindings::kvm_cpuid_entry2::default(),
         );
 
-        // XFAM (the set of XSAVE state components enabled for this TD) must
-        // be a subset of `supported_xfam` reported by `KVM_TDX_CAPABILITIES`
-        // (the kernel rejects `KVM_TDX_INIT_VM` with EINVAL otherwise, see
-        // `setup_tdparams()` in the kernel's `arch/x86/kvm/vmx/tdx.c`).
-        //
-        // Mask them out here so Cloud Hypervisor's TDX guest CPUID matches QEMU.
-        const XSTATE_CET_U_BIT: u64 = 11;
-        const XSTATE_CET_S_BIT: u64 = 12;
-        let xfam =
-            tdx_capabilities.supported_xfam & !((1 << XSTATE_CET_U_BIT) | (1 << XSTATE_CET_S_BIT));
-
         let data = KvmTdxInitVm {
-            attributes: 1 << TDX_ATTR_SEPT_VE_DISABLE,
+            attributes,
             xfam,
             mrconfigid: [0; 6],
             mrowner: [0; 6],
             mrownerconfig: [0; 6],
             reserved: [0; 12],
             cpuid: kvm_cpuid2 {
-                nent: init_vm_cpuid.len() as u32,
+                nent: filtered_cpuid.len() as u32,
                 padding: 0,
                 entries: new_cpuid.as_slice().try_into().unwrap(),
             },
@@ -1594,6 +1623,64 @@ impl vm::Vm for KvmVm {
     fn as_any(&self) -> &dyn Any {
         self
     }
+}
+
+/// Inject #VE on unexpected Secure-EPT violations instead of exiting the TD.
+#[cfg(feature = "tdx")]
+const TDX_TD_ATTR_SEPT_VE_DISABLE: u64 = 1 << 28;
+/// Protection Keys for Supervisor-mode pages (PKS) are available to the TD.
+#[cfg(feature = "tdx")]
+const TDX_TD_ATTR_PKS: u64 = 1 << 30;
+/// Performance Monitoring (PMU) is available to the TD.
+#[cfg(feature = "tdx")]
+const TDX_TD_ATTR_PERFMON: u64 = 1 << 63;
+
+/// Derive the TD's ATTRIBUTES from the guest CPUID view.
+///
+/// SEPT_VE_DISABLE is always requested. PKS and PERFMON must match the
+/// features exposed to the guest via CPUID, otherwise the TDX module rejects
+/// KVM_TDX_INIT_VM:
+///   - PKS (bit 30)     <- CPUID.(EAX=7,ECX=0).ECX[31]
+///   - PERFMON (bit 63) <- CPUID.(EAX=0xA,ECX=0).EAX[7:0] (PMU version) != 0
+///
+/// The PERFMON never set currently, `KVM_TDX_CAPABILITIES` reports
+/// CPUID.(EAX=0xA) as all-zero, so `tdx_filter_cpuid()` always zeroes this
+/// leaf before it reaches here.
+#[cfg(feature = "tdx")]
+fn tdx_attributes_from_cpuid(cpuid: &[CpuIdEntry]) -> u64 {
+    let mut attributes = TDX_TD_ATTR_SEPT_VE_DISABLE;
+    for entry in cpuid {
+        match (entry.function, entry.index) {
+            (0x7, 0) if entry.ecx & (1 << 31) != 0 => attributes |= TDX_TD_ATTR_PKS,
+            (0xA, 0) if entry.eax & 0xff != 0 => attributes |= TDX_TD_ATTR_PERFMON,
+            _ => {}
+        }
+    }
+    attributes
+}
+
+/// Compute the TD's XFAM (extended features available mask) from the guest
+/// CPUID view of the XSAVE state components.
+///
+/// CPUID.(EAX=0xD,ECX=0) reports the state managed via XCR0 (EAX = low 32
+/// bits, EDX = high 32 bits) and CPUID.(EAX=0xD,ECX=1) reports the state
+/// managed via IA32_XSS (ECX = low 32 bits, EDX = high 32 bits). XFAM is the
+/// union of both.
+#[cfg(feature = "tdx")]
+fn tdx_xfam_from_cpuid(cpuid: &[CpuIdEntry]) -> u64 {
+    let mut xcr0: u64 = 0;
+    let mut xss: u64 = 0;
+    for entry in cpuid {
+        if entry.function != 0xD {
+            continue;
+        }
+        match entry.index {
+            0 => xcr0 = u64::from(entry.eax) | (u64::from(entry.edx) << 32),
+            1 => xss = u64::from(entry.ecx) | (u64::from(entry.edx) << 32),
+            _ => {}
+        }
+    }
+    xcr0 | xss
 }
 
 #[cfg(feature = "tdx")]
