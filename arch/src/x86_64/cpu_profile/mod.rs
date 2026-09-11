@@ -30,6 +30,7 @@ const VMX_FEATURE_MSR_RANGE: RangeInclusive<u32> = MSR_IA32_VMX_BASIC..=MSR_IA32
 
 pub mod cpuid_adjustments;
 pub mod msr_adjustments;
+pub mod profile_generation;
 
 /// CPUID and MSR adjustments describing a CPU profile.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
