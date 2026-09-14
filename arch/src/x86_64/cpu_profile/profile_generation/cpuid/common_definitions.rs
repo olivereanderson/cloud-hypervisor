@@ -52,6 +52,45 @@ pub fn commond_cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefin
                 policy: ProfilePolicy::Inherit,
             }][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x1,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EAX,
+            },
+            &[
+                ValueDefinition {
+                    name: "stepping",
+                    bits_range: 0..=3,
+                    policy: ProfilePolicy::Inherit,
+                },
+                ValueDefinition {
+                    name: "base_model",
+                    bits_range: 4..=7,
+                    policy: ProfilePolicy::Inherit,
+                },
+                ValueDefinition {
+                    name: "base_family_id",
+                    bits_range: 8..=11,
+                    policy: ProfilePolicy::Inherit,
+                },
+                ValueDefinition {
+                    name: "cpu_type",
+                    bits_range: 12..=13,
+                    policy: ProfilePolicy::Inherit,
+                },
+                ValueDefinition {
+                    name: "ext_model",
+                    bits_range: 16..=19,
+                    policy: ProfilePolicy::Inherit,
+                },
+                ValueDefinition {
+                    name: "ext_family",
+                    bits_range: 20..=27,
+                    policy: ProfilePolicy::Inherit,
+                },
+            ][..],
+        ),
     ]
     .to_vec()
 }
