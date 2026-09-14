@@ -3,6 +3,7 @@ use std::ops::RangeInclusive;
 use hypervisor::CpuVendor;
 pub mod amd_definitions;
 pub mod common_definitions;
+pub mod intel_definitions;
 
 /// Describes a policy for how a given range of bits within a CPUID output register should be
 /// recorded when the CPU profile is generated.
