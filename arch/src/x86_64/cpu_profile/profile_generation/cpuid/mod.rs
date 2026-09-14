@@ -1,6 +1,7 @@
 use std::ops::RangeInclusive;
 
 use hypervisor::CpuVendor;
+pub mod common_definitions;
 
 /// Describes a policy for how a given range of bits within a CPUID output register should be
 /// recorded when the CPU profile is generated.
