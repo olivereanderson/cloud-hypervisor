@@ -1033,7 +1033,15 @@ impl Vm {
         if config.lock().unwrap().is_tdx_enabled() {
             let cpuid = cpu_manager.lock().unwrap().common_cpuid();
             let max_vcpus = cpu_manager.lock().unwrap().max_vcpus();
-            vm.tdx_init(&cpuid, max_vcpus)
+            let (mrconfigid, mrowner, mrownerconfig) = config
+                .lock()
+                .unwrap()
+                .platform
+                .as_ref()
+                .expect("TDX requires a platform configuration")
+                .tdx_measurements()
+                .map_err(Error::ConfigValidation)?;
+            vm.tdx_init(&cpuid, max_vcpus, &mrconfigid, &mrowner, &mrownerconfig)
                 .map_err(Error::InitializeTdxVm)?;
         }
         Ok(())

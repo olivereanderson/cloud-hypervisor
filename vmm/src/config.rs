@@ -271,6 +271,14 @@ pub enum ValidationError {
     #[cfg(feature = "tdx")]
     #[error("No TDX firmware specified")]
     TdxFirmwareMissing,
+    /// Invalid TDX measurement-configuration digest
+    #[cfg(feature = "tdx")]
+    #[error("TDX '{0}' must be a 96-character (48-byte) hex SHA384 digest: {1}")]
+    TdxInvalidMeasurement(&'static str, String),
+    /// TDX measurement-configuration digest specified without enabling TDX
+    #[cfg(feature = "tdx")]
+    #[error("mrconfigid/mrowner/mrownerconfig require 'tdx=on'")]
+    TdxMeasurementWithoutTdx,
     /// Insufficient vCPUs for queues
     #[error("Queue count ({0}) must not exceed boot vCPUs ({1})")]
     TooManyQueues(usize /* queues */, usize /* vCPUs */),
@@ -969,6 +977,12 @@ impl PlatformConfig {
         }
         #[cfg(feature = "tdx")]
         parser.add("tdx");
+        #[cfg(feature = "tdx")]
+        parser.add("mrconfigid");
+        #[cfg(feature = "tdx")]
+        parser.add("mrowner");
+        #[cfg(feature = "tdx")]
+        parser.add("mrownerconfig");
         #[cfg(feature = "sev_snp")]
         parser.add("sev_snp");
         parser.parse(platform).map_err(Error::ParsePlatform)?;
@@ -1008,6 +1022,18 @@ impl PlatformConfig {
             .map_err(Error::ParsePlatform)?
             .unwrap_or(Toggle(false))
             .0;
+        #[cfg(feature = "tdx")]
+        let tdx_mrconfigid = parser
+            .convert::<String>("mrconfigid")
+            .map_err(Error::ParsePlatform)?;
+        #[cfg(feature = "tdx")]
+        let tdx_mrowner = parser
+            .convert::<String>("mrowner")
+            .map_err(Error::ParsePlatform)?;
+        #[cfg(feature = "tdx")]
+        let tdx_mrownerconfig = parser
+            .convert::<String>("mrownerconfig")
+            .map_err(Error::ParsePlatform)?;
         #[cfg(feature = "sev_snp")]
         let sev_snp = parser
             .convert::<Toggle>("sev_snp")
@@ -1032,6 +1058,12 @@ impl PlatformConfig {
             iommufd_fd,
             #[cfg(feature = "tdx")]
             tdx,
+            #[cfg(feature = "tdx")]
+            tdx_mrconfigid,
+            #[cfg(feature = "tdx")]
+            tdx_mrowner,
+            #[cfg(feature = "tdx")]
+            tdx_mrownerconfig,
             #[cfg(feature = "sev_snp")]
             sev_snp,
             vfio_p2p_dma,
@@ -1065,6 +1097,27 @@ impl PlatformConfig {
         platform_config.system_uuid = platform_config.system_uuid.or(legacy_uuid);
 
         Ok(platform_config)
+    }
+
+    /// Decode the optional TDX SHA384 measurement-configuration digests
+    /// (`mrconfigid`, `mrowner`, `mrownerconfig`) from their hex string form
+    /// into 48-byte arrays. Any register left unset decodes to all zeros.
+    #[cfg(feature = "tdx")]
+    pub fn tdx_measurements(&self) -> ValidationResult<([u8; 48], [u8; 48], [u8; 48])> {
+        fn decode(name: &'static str, value: &Option<String>) -> ValidationResult<[u8; 48]> {
+            let mut out = [0u8; 48];
+            if let Some(s) = value {
+                hex::decode_to_slice(s, &mut out)
+                    .map_err(|e| ValidationError::TdxInvalidMeasurement(name, e.to_string()))?;
+            }
+            Ok(out)
+        }
+
+        Ok((
+            decode("mrconfigid", &self.tdx_mrconfigid)?,
+            decode("mrowner", &self.tdx_mrowner)?,
+            decode("mrownerconfig", &self.tdx_mrownerconfig)?,
+        ))
     }
 
     pub fn validate(&self) -> ValidationResult<()> {
@@ -3316,6 +3369,15 @@ impl VmConfig {
             if tdx_enabled && (self.cpus.max_vcpus != self.cpus.boot_vcpus) {
                 return Err(ValidationError::TdxNoCpuHotplug);
             }
+            let has_tdx_measurements = self.platform.as_ref().is_some_and(|p| {
+                p.tdx_mrconfigid.is_some() || p.tdx_mrowner.is_some() || p.tdx_mrownerconfig.is_some()
+            });
+            if has_tdx_measurements && !tdx_enabled {
+                return Err(ValidationError::TdxMeasurementWithoutTdx);
+            }
+            if tdx_enabled {
+                self.platform.as_ref().unwrap().tdx_measurements()?;
+            }
             if tdx_enabled {
                 // For TDX the guest physical address width (GPAW) is fixed at:
                 // 48 - (GPAW-48, 4-level EPT)
@@ -5207,6 +5269,38 @@ id=\"{id}\",pci_segment={pci_segment},queue_sizes={queue_sizes}"
         Ok(())
     }
 
+    #[cfg(feature = "tdx")]
+    #[test]
+    fn test_platform_tdx_measurements() -> Result<()> {
+        // Unset registers decode to all zeros.
+        let p = PlatformConfig::parse("tdx=on")?;
+        assert_eq!(p.tdx_measurements(), Ok(([0u8; 48], [0u8; 48], [0u8; 48])));
+
+        // A valid 96-character hex digest decodes into the matching register.
+        let hexid = "01".repeat(48);
+        let p = PlatformConfig::parse(&format!("tdx=on,mrconfigid={hexid}"))?;
+        let (mrconfigid, mrowner, mrownerconfig) = p.tdx_measurements().unwrap();
+        assert_eq!(mrconfigid, [1u8; 48]);
+        assert_eq!(mrowner, [0u8; 48]);
+        assert_eq!(mrownerconfig, [0u8; 48]);
+
+        // Wrong length is rejected by validation.
+        let p = PlatformConfig::parse("tdx=on,mrowner=00")?;
+        assert!(matches!(
+            p.tdx_measurements(),
+            Err(ValidationError::TdxInvalidMeasurement("mrowner", _))
+        ));
+
+        // Non-hex characters are rejected too.
+        let p = PlatformConfig::parse(&format!("tdx=on,mrownerconfig={}", "zz".repeat(48)))?;
+        assert!(matches!(
+            p.tdx_measurements(),
+            Err(ValidationError::TdxInvalidMeasurement("mrownerconfig", _))
+        ));
+
+        Ok(())
+    }
+
     #[test]
     fn test_platform_iommufd_fd_parsing() -> Result<()> {
         // `iommufd_fd=N` alone implies `iommufd=on`.
@@ -5909,6 +6003,12 @@ id=\"{id}\",pci_segment={pci_segment},queue_sizes={queue_sizes}"
             chassis_asset_tag: None,
             #[cfg(feature = "tdx")]
             tdx: false,
+            #[cfg(feature = "tdx")]
+            tdx_mrconfigid: None,
+            #[cfg(feature = "tdx")]
+            tdx_mrowner: None,
+            #[cfg(feature = "tdx")]
+            tdx_mrownerconfig: None,
             #[cfg(feature = "sev_snp")]
             sev_snp: false,
         }
@@ -6032,6 +6132,17 @@ id=\"{id}\",pci_segment={pci_segment},queue_sizes={queue_sizes}"
             tdx_config.cpus.max_phys_bits = 52;
             tdx_config.validate().unwrap();
             assert_eq!(tdx_config.cpus.max_phys_bits, 52);
+
+            // mrconfigid/mrowner/mrownerconfig are rejected without tdx=on.
+            let mut no_tdx_config = valid_config.clone();
+            no_tdx_config.platform = Some(PlatformConfig {
+                tdx_mrconfigid: Some("01".repeat(48)),
+                ..platform_fixture()
+            });
+            assert_eq!(
+                no_tdx_config.validate(),
+                Err(ValidationError::TdxMeasurementWithoutTdx)
+            );
         }
 
         let mut invalid_config = valid_config.clone();

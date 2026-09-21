@@ -83,9 +83,13 @@ pub(crate) struct KvmTdxCmd {
 pub(crate) struct KvmTdxInitVm {
     pub attributes: u64,
     pub xfam: u64,
-    pub mrconfigid: [u64; 6],
-    pub mrowner: [u64; 6],
-    pub mrownerconfig: [u64; 6],
+    // The kernel treats mrconfigid/mrowner/mrownerconfig as raw 48-byte SHA384
+    // digests (declared `__u64[6]`, populated by a byte copy), so store them
+    // as byte arrays to forward the caller's values verbatim without any
+    // endianness conversion.
+    pub mrconfigid: [u8; 48],
+    pub mrowner: [u8; 48],
+    pub mrownerconfig: [u8; 48],
     pub reserved: [u64; 12],
     pub cpuid: kvm_cpuid2,
 }

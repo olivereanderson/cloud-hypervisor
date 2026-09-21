@@ -1523,7 +1523,14 @@ impl vm::Vm for KvmVm {
     /// Initialize TDX for this VM
     ///
     #[cfg(feature = "tdx")]
-    fn tdx_init(&self, cpuid: &[CpuIdEntry], max_vcpus: u32) -> vm::Result<()> {
+    fn tdx_init(
+        &self,
+        cpuid: &[CpuIdEntry],
+        max_vcpus: u32,
+        mrconfigid: &[u8; 48],
+        mrowner: &[u8; 48],
+        mrownerconfig: &[u8; 48],
+    ) -> vm::Result<()> {
         let tdx_capabilities = self.tdx_capabilities()?;
 
         // `KVM_TDX_INIT_VM` only accepts the configurable leaves reported by
@@ -1559,9 +1566,9 @@ impl vm::Vm for KvmVm {
         let data = KvmTdxInitVm {
             attributes,
             xfam,
-            mrconfigid: [0; 6],
-            mrowner: [0; 6],
-            mrownerconfig: [0; 6],
+            mrconfigid: *mrconfigid,
+            mrowner: *mrowner,
+            mrownerconfig: *mrownerconfig,
             reserved: [0; 12],
             cpuid: kvm_cpuid2 {
                 nent: filtered_cpuid.len() as u32,
