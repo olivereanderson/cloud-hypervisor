@@ -27,7 +27,7 @@ build_features="kvm,tdx"
 cargo build --features $build_features --all --release --target "$BUILD_TARGET"
 
 export RUST_BACKTRACE=1
-time cargo nextest run $test_features --retries 3 --no-fail-fast --no-tests=pass --test-threads=$(($(nproc) / 4)) "common_tdx::$test_filter" -- ${test_binary_args[*]}
+time cargo nextest run $test_features --retries 3 --no-fail-fast --no-tests=pass --test-threads=4 "common_tdx::$test_filter" -- ${test_binary_args[*]}
 RES=$?
 
 exit $RES
