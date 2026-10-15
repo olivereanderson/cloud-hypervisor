@@ -10,6 +10,9 @@
 #![allow(dead_code)]
 mod common;
 
+const TDX_TEST_IMG_NAME_RAW: &str = "tdx_test_img.raw";
+const TDX_TEST_IMG_NAME_QCOW: &str = "tdx_test_img.qcow";
+
 #[cfg(all(feature = "tdx", target_arch = "x86_64"))]
 mod common_tdx {
     use std::io::Read;
@@ -32,21 +35,19 @@ mod common_tdx {
 
     #[test]
     fn test_focal_simple_launch() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
-            .with_kernel(fw_path(FwType::Tdvf));
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW).with_kernel(fw_path(FwType::Tdvf));
         _test_simple_launch(&guest);
     }
 
     #[test]
     fn test_multi_cpu() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
-            .with_kernel(fw_path(FwType::Tdvf));
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW).with_kernel(fw_path(FwType::Tdvf));
         _test_multi_cpu(&guest);
     }
 
     #[test]
     fn test_api_http_create_boot() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW)
             .with_kernel(fw_path(FwType::Tdvf))
             .with_cpu(4);
         let target_api = TargetApi::new_http_api(&guest.tmp_dir);
@@ -55,7 +56,7 @@ mod common_tdx {
 
     #[test]
     fn test_api_http_shutdown() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW)
             .with_kernel(fw_path(FwType::Tdvf))
             .with_cpu(4);
         let target_api = TargetApi::new_http_api(&guest.tmp_dir);
@@ -64,7 +65,7 @@ mod common_tdx {
 
     #[test]
     fn test_api_http_delete() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW)
             .with_kernel(fw_path(FwType::Tdvf))
             .with_cpu(4);
         let target_api = TargetApi::new_http_api(&guest.tmp_dir);
@@ -73,14 +74,13 @@ mod common_tdx {
 
     #[test]
     fn test_power_button() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
-            .with_kernel(fw_path(FwType::Tdvf));
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW).with_kernel(fw_path(FwType::Tdvf));
         _test_power_button(&guest);
     }
 
     #[test]
     fn test_virtio_queue_affinity() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW)
             .with_kernel(fw_path(FwType::Tdvf))
             .with_cpu(4);
         _test_virtio_queue_affinity(&guest);
@@ -88,8 +88,7 @@ mod common_tdx {
 
     #[test]
     fn test_virtio_vsock() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
-            .with_kernel(fw_path(FwType::Tdvf));
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW).with_kernel(fw_path(FwType::Tdvf));
 
         let socket = temp_vsock_path(&guest.tmp_dir);
         let api_socket = temp_api_path(&guest.tmp_dir);
@@ -118,22 +117,19 @@ mod common_tdx {
 
     #[test]
     fn test_pci_msi() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
-            .with_kernel(fw_path(FwType::Tdvf));
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW).with_kernel(fw_path(FwType::Tdvf));
         _test_pci_msi(&guest);
     }
 
     #[test]
     fn test_virtio_net_ctrl_queue() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
-            .with_kernel(fw_path(FwType::Tdvf));
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW).with_kernel(fw_path(FwType::Tdvf));
         _test_virtio_net_ctrl_queue(&guest);
     }
 
     #[test]
     fn test_counters() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
-            .with_kernel(fw_path(FwType::Tdvf));
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW).with_kernel(fw_path(FwType::Tdvf));
         _test_counters(&guest);
     }
 
@@ -141,7 +137,7 @@ mod common_tdx {
     fn test_virtio_block_io_uring() {
         let guest = make_virtio_block_guest(
             &GuestFactory::new_tdx_guest_factory(),
-            "noble-server-cloudimg-amd64-UEFI.img",
+            TDX_TEST_IMG_NAME_QCOW,
         )
         .with_kernel(fw_path(FwType::Tdvf));
         _test_virtio_block(&guest, false, true, false, false, ImageType::Qcow2);
@@ -151,7 +147,7 @@ mod common_tdx {
     fn test_virtio_block_aio() {
         let guest = make_virtio_block_guest(
             &GuestFactory::new_tdx_guest_factory(),
-            "noble-server-cloudimg-amd64-UEFI.img",
+            TDX_TEST_IMG_NAME_QCOW,
         )
         .with_kernel(fw_path(FwType::Tdvf));
         _test_virtio_block(&guest, true, false, false, false, ImageType::Qcow2);
@@ -161,7 +157,7 @@ mod common_tdx {
     fn test_virtio_block_sync() {
         let guest = make_virtio_block_guest(
             &GuestFactory::new_tdx_guest_factory(),
-            "noble-server-cloudimg-amd64-UEFI.img",
+            TDX_TEST_IMG_NAME_QCOW,
         )
         .with_kernel(fw_path(FwType::Tdvf));
         _test_virtio_block(&guest, true, true, false, false, ImageType::Qcow2);
@@ -169,22 +165,19 @@ mod common_tdx {
 
     #[test]
     fn test_disk_hotplug() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
-            .with_kernel(fw_path(FwType::Tdvf));
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW).with_kernel(fw_path(FwType::Tdvf));
         _test_disk_hotplug_no_reboot(&guest, false);
     }
 
     #[test]
     fn test_split_irqchip() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
-            .with_kernel(fw_path(FwType::Tdvf));
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW).with_kernel(fw_path(FwType::Tdvf));
         _test_split_irqchip(&guest);
     }
 
     #[test]
     fn test_direct_kernel_boot_noacpi() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
-            .with_kernel(fw_path(FwType::Tdvf));
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW).with_kernel(fw_path(FwType::Tdvf));
 
         let mut child = GuestCommand::new(&guest)
             .default_cpus()
@@ -212,8 +205,7 @@ mod common_tdx {
 
     #[test]
     fn test_pci_bar_reprogramming() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
-            .with_kernel(fw_path(FwType::Tdvf));
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW).with_kernel(fw_path(FwType::Tdvf));
 
         let mut child = GuestCommand::new(&guest)
             .default_cpus()
@@ -294,7 +286,7 @@ mod common_tdx {
     #[test]
     fn test_memory_overhead() {
         let guest_memory_size_kb: u32 = 512 * 1024;
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW)
             .with_kernel(fw_path(FwType::Tdvf))
             .with_memory(&format!("{guest_memory_size_kb}K"));
 
@@ -326,8 +318,7 @@ mod common_tdx {
 
     #[test]
     fn test_dmi_uuid() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
-            .with_kernel(fw_path(FwType::Tdvf));
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW).with_kernel(fw_path(FwType::Tdvf));
 
         let expected_uuid = "1e8aa28a-435d-4027-87f4-40dceff1fa0a";
         let platform = format!("uuid={expected_uuid}");
@@ -378,8 +369,7 @@ mod common_tdx {
 
     #[test]
     fn test_dmi_oem_strings() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
-            .with_kernel(fw_path(FwType::Tdvf));
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW).with_kernel(fw_path(FwType::Tdvf));
 
         let s1 = "io.systemd.credential:xx=yy";
         let s2 = "This is a test string";
@@ -434,8 +424,7 @@ mod common_tdx {
 
     #[test]
     fn test_multiple_network_interfaces() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
-            .with_kernel(fw_path(FwType::Tdvf));
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW).with_kernel(fw_path(FwType::Tdvf));
         let mut child = GuestCommand::new(&guest)
             .default_cpus()
             .default_memory()
@@ -476,8 +465,7 @@ mod common_tdx {
 
     #[test]
     fn test_serial_off() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
-            .with_kernel(fw_path(FwType::Tdvf));
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW).with_kernel(fw_path(FwType::Tdvf));
 
         let mut child = GuestCommand::new(&guest)
             .default_cpus()
@@ -507,15 +495,13 @@ mod common_tdx {
 
     #[test]
     fn test_virtio_console() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
-            .with_kernel(fw_path(FwType::Tdvf));
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW).with_kernel(fw_path(FwType::Tdvf));
         _test_virtio_console(&guest);
     }
 
     #[test]
     fn test_console_file() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
-            .with_kernel(fw_path(FwType::Tdvf));
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW).with_kernel(fw_path(FwType::Tdvf));
         let console_path = guest.tmp_dir.as_path().join("console-output");
 
         let mut child = GuestCommand::new(&guest)
@@ -560,7 +546,7 @@ mod common_tdx {
 
     #[test]
     fn test_tap_from_fd() {
-        let guest = basic_tdx_guest!("noble-server-cloudimg-amd64-UEFI.img")
+        let guest = basic_tdx_guest!(TDX_TEST_IMG_NAME_RAW)
             .with_kernel(fw_path(FwType::Tdvf))
             .with_cpu(2);
 
