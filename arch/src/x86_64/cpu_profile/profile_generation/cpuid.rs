@@ -2,6 +2,8 @@ use std::ops::RangeInclusive;
 
 use hypervisor::CpuVendor;
 
+use crate::x86_64::cpu_profile::cpuid_adjustments::CpuidParameters;
+
 /// Describes a policy for how a given range of bits within a CPUID output register should be
 /// recorded when the CPU profile is generated.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -25,4 +27,8 @@ pub struct ValueDefinition {
     pub policy: ProfilePolicy,
     // The CPU vendors that have documented this value.
     pub vendors: &'static [CpuVendor],
+}
+
+pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])> {
+    todo!()
 }
