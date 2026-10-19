@@ -555,6 +555,32 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 },
             ][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x2,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EAX,
+            },
+            &[ValueDefinition {
+                name: "iteration_count",
+                bits_range: 0..=7,
+                policy: ProfilePolicy::Static(1),
+                vendors: &[CpuVendor::Intel],
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x2,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EDX,
+            },
+            &[ValueDefinition {
+                name: "descriptor",
+                bits_range: 0..=7,
+                policy: ProfilePolicy::Static(0xff),
+                vendors: &[CpuVendor::Intel],
+            }][..],
+        ),
     ]
     .to_vec()
 }
