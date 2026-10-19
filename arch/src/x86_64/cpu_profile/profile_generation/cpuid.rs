@@ -651,4 +651,18 @@ static CPUID_DEFINITIONS: &[(CpuidParameters, &[ValueDefinition])] = &[
             },
         ],
     ),
+    (
+        CpuidParameters {
+            leaf: 0x6,
+            sub_leaf: 0..=0,
+            register: CpuidReg::EAX,
+        },
+        &[ValueDefinition {
+            name: "arat",
+            bits_range: 2..=2,
+            // The timer is emulated by KVM and thus always always-running :)
+            policy: ProfilePolicy::Static(1),
+            vendors: AMD_AND_INTEL,
+        }],
+    ),
 ];
