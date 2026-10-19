@@ -709,6 +709,19 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 vendors: AMD_AND_INTEL,
             }][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x7,
+                sub_leaf: RangeInclusive::new(0, 0),
+                register: CpuidReg::EAX,
+            },
+            &[ValueDefinition {
+                name: "leaf7_n_subleaves",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
     ]
     .to_vec()
 }
