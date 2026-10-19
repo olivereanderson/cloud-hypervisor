@@ -584,4 +584,31 @@ static CPUID_DEFINITIONS: &[(CpuidParameters, &[ValueDefinition])] = &[
             },
         ],
     ),
+    (
+        CpuidParameters {
+            leaf: 0x4,
+            sub_leaf: 0..=u32::MAX,
+            register: CpuidReg::EBX,
+        },
+        &[
+            ValueDefinition {
+                name: "cache_linesize",
+                bits_range: 0..=11,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cache_npartitions",
+                bits_range: 12..=21,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cache_nways",
+                bits_range: 22..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+        ],
+    ),
 ];
