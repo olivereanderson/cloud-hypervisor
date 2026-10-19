@@ -668,6 +668,33 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 vendors: &[CpuVendor::Intel],
             }][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x4,
+                sub_leaf: 0..=u32::MAX,
+                register: CpuidReg::EDX,
+            },
+            &[
+                ValueDefinition {
+                    name: "wbinvd_rll_no_guarantee",
+                    bits_range: 0..=0,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "ll_inclusive",
+                    bits_range: 1..=1,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "complex_indexing",
+                    bits_range: 2..=2,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+            ][..],
+        ),
     ]
     .to_vec()
 }
