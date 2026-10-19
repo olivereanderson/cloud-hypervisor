@@ -581,6 +581,53 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 vendors: &[CpuVendor::Intel],
             }][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x4,
+                sub_leaf: 0..=u32::MAX,
+                register: CpuidReg::EAX,
+            },
+            &[
+                ValueDefinition {
+                    name: "cache_type",
+                    bits_range: 0..=4,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "cache_level",
+                    bits_range: 5..=7,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "cache_self_init",
+                    bits_range: 8..=8,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "fully_associative",
+                    bits_range: 9..=9,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                // This is always set by cloud hypervisor
+                ValueDefinition {
+                    name: "num_threads_sharing",
+                    bits_range: 14..=25,
+                    policy: ProfilePolicy::Passthrough,
+                    vendors: &[CpuVendor::Intel],
+                },
+                // This is always set by cloud hypervisor
+                ValueDefinition {
+                    name: "num_cores_on_die",
+                    bits_range: 26..=31,
+                    policy: ProfilePolicy::Passthrough,
+                    vendors: &[CpuVendor::Intel],
+                },
+            ][..],
+        ),
     ]
     .to_vec()
 }
