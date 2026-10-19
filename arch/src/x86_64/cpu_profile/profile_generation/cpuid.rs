@@ -611,4 +611,17 @@ static CPUID_DEFINITIONS: &[(CpuidParameters, &[ValueDefinition])] = &[
             },
         ],
     ),
+    (
+        CpuidParameters {
+            leaf: 0x4,
+            sub_leaf: 0..=u32::MAX,
+            register: CpuidReg::ECX,
+        },
+        &[ValueDefinition {
+            name: "cache_nsets",
+            bits_range: 0..=30,
+            policy: ProfilePolicy::Inherit,
+            vendors: &[CpuVendor::Intel],
+        }],
+    ),
 ];
