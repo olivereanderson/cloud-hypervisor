@@ -134,6 +134,41 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 },
             ][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x1,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EBX,
+            },
+            &[
+                ValueDefinition {
+                    name: "brand_id",
+                    bits_range: 0..=7,
+                    policy: ProfilePolicy::Static(0),
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "clflush_size",
+                    bits_range: 8..=15,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                // This is always set by cloud hypervisor
+                ValueDefinition {
+                    name: "n_logical_cpu",
+                    bits_range: 16..=23,
+                    policy: ProfilePolicy::Passthrough,
+                    vendors: AMD_AND_INTEL,
+                },
+                // This is always set by cloud hypervisor
+                ValueDefinition {
+                    name: "local_apic_id",
+                    bits_range: 24..=31,
+                    policy: ProfilePolicy::Passthrough,
+                    vendors: AMD_AND_INTEL,
+                },
+            ][..],
+        ),
     ]
     .to_vec()
 }
