@@ -2,6 +2,7 @@ use std::ops::RangeInclusive;
 
 use hypervisor::CpuVendor;
 
+use crate::x86_64::CpuidReg;
 use crate::x86_64::cpu_profile::cpuid_adjustments::CpuidParameters;
 // pub mod amd_definitions;
 // pub mod common_definitions;
@@ -32,6 +33,21 @@ pub struct ValueDefinition {
     pub vendors: &'static [CpuVendor],
 }
 
+pub const AMD_AND_INTEL: &'static [CpuVendor] = &[CpuVendor::AMD, CpuVendor::Intel];
+
 pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])> {
-    todo!()
+    [(
+        CpuidParameters {
+            leaf: 0,
+            sub_leaf: 0..=0,
+            register: CpuidReg::EAX,
+        },
+        &[ValueDefinition {
+            name: "max_std_leaf",
+            bits_range: 0..=31,
+            policy: ProfilePolicy::Inherit,
+            vendors: AMD_AND_INTEL,
+        }][..],
+    )]
+    .to_vec()
 }
