@@ -722,6 +722,189 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 vendors: AMD_AND_INTEL,
             }][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x7,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EBX,
+            },
+            &[
+                ValueDefinition {
+                    name: "fsgsbase",
+                    bits_range: 0..=0,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "tsc_adjust",
+                    bits_range: 1..=1,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                // SGX is deprecated so we disable it unconditionally for all CPU profiles
+                ValueDefinition {
+                    name: "sgx",
+                    bits_range: 2..=2,
+                    policy: ProfilePolicy::Static(0),
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "bmi1",
+                    bits_range: 3..=3,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                // TSX related which is riddled with CVEs.
+                ValueDefinition {
+                    name: "hle",
+                    bits_range: 4..=4,
+                    policy: ProfilePolicy::Static(0),
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "avx2",
+                    bits_range: 5..=5,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                //The KVM docs recommend always setting this (https://docs.kernel.org/virt/kvm/x86/errata.html#kvm-get-supported-cpuid-issues).
+                ValueDefinition {
+                    name: "fdp_excptn_only",
+                    bits_range: 6..=6,
+                    policy: ProfilePolicy::Static(1),
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "smep",
+                    bits_range: 7..=7,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "bmi2",
+                    bits_range: 8..=8,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "erms",
+                    bits_range: 9..=9,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "invpcid",
+                    bits_range: 10..=10,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                // This is TSX related which is riddled with CVEs.
+                ValueDefinition {
+                    name: "rtm",
+                    bits_range: 11..=11,
+                    policy: ProfilePolicy::Static(0),
+                    vendors: &[CpuVendor::Intel],
+                },
+                // The KVM docs recommend always setting this (https://docs.kernel.org/virt/kvm/x86/errata.html#kvm-get-supported-cpuid-issues).
+                ValueDefinition {
+                    name: "zero_fcs_fds",
+                    bits_range: 13..=13,
+                    policy: ProfilePolicy::Static(1),
+                    vendors: &[CpuVendor::Intel],
+                },
+                // This has been deprecated
+                ValueDefinition {
+                    name: "mpx",
+                    bits_range: 14..=14,
+                    policy: ProfilePolicy::Static(0),
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "avx512f",
+                    bits_range: 16..=16,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "avx512dq",
+                    bits_range: 17..=17,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "rdseed",
+                    bits_range: 18..=18,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "adx",
+                    bits_range: 19..=19,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "smap",
+                    bits_range: 20..=20,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "avx512ifma",
+                    bits_range: 21..=21,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "clflushopt",
+                    bits_range: 23..=23,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "clwb",
+                    bits_range: 24..=24,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "avx512pf",
+                    bits_range: 26..=26,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "avx512er",
+                    bits_range: 27..=27,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "avx512cd",
+                    bits_range: 28..=28,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "sha",
+                    bits_range: 29..=29,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "avx512bw",
+                    bits_range: 30..=30,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "avx512vl",
+                    bits_range: 31..=31,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+            ][..],
+        ),
     ]
     .to_vec()
 }
