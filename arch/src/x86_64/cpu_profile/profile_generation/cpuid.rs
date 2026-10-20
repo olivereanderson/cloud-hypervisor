@@ -1250,4 +1250,17 @@ static CPUID_DEFINITIONS: &[(CpuidParameters, &[ValueDefinition])] = &[
             },
         ],
     ),
+    (
+        CpuidParameters {
+            leaf: 0x7,
+            sub_leaf: 1..=1,
+            register: CpuidReg::ECX,
+        },
+        &[ValueDefinition {
+            name: "msr_imm",
+            bits_range: 5..=5,
+            policy: ProfilePolicy::Inherit,
+            vendors: &[CpuVendor::Intel],
+        }],
+    ),
 ];
