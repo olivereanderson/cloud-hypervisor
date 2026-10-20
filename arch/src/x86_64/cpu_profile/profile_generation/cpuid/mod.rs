@@ -1171,6 +1171,129 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 },
             ][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x7,
+                sub_leaf: 1..=1,
+                register: CpuidReg::EAX,
+            },
+            &[
+                ValueDefinition {
+                    name: "sha512",
+                    bits_range: 0..=0,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "sm3",
+                    bits_range: 1..=1,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "sm4",
+                    bits_range: 2..=2,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "avx_vnni",
+                    bits_range: 4..=4,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "avx512_bf16",
+                    bits_range: 5..=5,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "lass",
+                    bits_range: 6..=6,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "cmpccxadd",
+                    bits_range: 7..=7,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "fzrm",
+                    bits_range: 10..=10,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "fsrs",
+                    bits_range: 11..=11,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "fsrc",
+                    bits_range: 12..=12,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "fred",
+                    bits_range: 17..=17,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "lkgs",
+                    bits_range: 18..=18,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "wrmsrns",
+                    bits_range: 19..=19,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "amx_fp16",
+                    bits_range: 21..=21,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "avx_ifma",
+                    bits_range: 23..=23,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "lam",
+                    bits_range: 26..=26,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "rd_wr_msrlist",
+                    bits_range: 27..=27,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "invd_disable_post_bios_done",
+                    bits_range: 30..=30,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "movrs",
+                    bits_range: 31..=31,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+            ][..],
+        ),
     ]
     .to_vec()
 }
