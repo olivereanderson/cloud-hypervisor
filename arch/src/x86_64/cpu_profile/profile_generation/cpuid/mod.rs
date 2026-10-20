@@ -1358,6 +1358,64 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 },
             ][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x7,
+                sub_leaf: 2..=2,
+                register: CpuidReg::EDX,
+            },
+            &[
+                // MSR related
+                ValueDefinition {
+                    name: "intel_psfd",
+                    bits_range: 0..=0,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                // MSR related
+                ValueDefinition {
+                    name: "ipred_ctrl",
+                    bits_range: 1..=1,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                // MSR related
+                ValueDefinition {
+                    name: "rrsba_ctrl",
+                    bits_range: 2..=2,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                // MSR related
+                ValueDefinition {
+                    name: "ddp_ctrl",
+                    bits_range: 3..=3,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                // MSR related
+                ValueDefinition {
+                    name: "bhi_ctrl",
+                    bits_range: 4..=4,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                // MSR related
+                ValueDefinition {
+                    name: "mcdt_no",
+                    bits_range: 5..=5,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                // MSR related
+                ValueDefinition {
+                    name: "uclock_disable",
+                    bits_range: 6..=6,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+            ][..],
+        ),
     ]
     .to_vec()
 }
