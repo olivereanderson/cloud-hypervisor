@@ -1561,6 +1561,19 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 vendors: AMD_AND_INTEL,
             }][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0xd,
+                sub_leaf: 0..=0,
+                register: CpuidReg::ECX,
+            },
+            &[ValueDefinition {
+                name: "xsave_sz_max",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Passthrough,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
     ]
     .to_vec()
 }
