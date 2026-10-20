@@ -1569,4 +1569,17 @@ static CPUID_DEFINITIONS: &[(CpuidParameters, &[ValueDefinition])] = &[
             },
         ],
     ),
+    (
+        CpuidParameters {
+            leaf: 0xd,
+            sub_leaf: 1..=1,
+            register: CpuidReg::EBX,
+        },
+        &[ValueDefinition {
+            name: "xsave_sz_xcr0_xmms_enabled",
+            bits_range: 0..=31,
+            policy: ProfilePolicy::Passthrough,
+            vendors: AMD_AND_INTEL,
+        }],
+    ),
 ];
