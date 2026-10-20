@@ -3,6 +3,7 @@ use std::ops::RangeInclusive;
 use hypervisor::CpuVendor;
 
 use crate::x86_64::CpuidReg;
+use crate::x86_64::Error::CpuProfileCpuidIncompatibility;
 use crate::x86_64::cpu_profile::cpuid_adjustments::CpuidParameters;
 // pub mod amd_definitions;
 // pub mod common_definitions;
@@ -902,6 +903,166 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                     bits_range: 31..=31,
                     policy: ProfilePolicy::Inherit,
                     vendors: AMD_AND_INTEL,
+                },
+            ][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x7,
+                sub_leaf: 0..=0,
+                register: CpuidReg::ECX,
+            },
+            &[
+                ValueDefinition {
+                    name: "avx512vbmi",
+                    bits_range: 1..=1,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "umip",
+                    bits_range: 2..=2,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "pku",
+                    bits_range: 3..=3,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                // NOTE: This field is mutable in principle and can be changed by the OS
+                ValueDefinition {
+                    name: "ospke",
+                    bits_range: 4..=4,
+                    policy: ProfilePolicy::Passthrough,
+                    vendors: AMD_AND_INTEL,
+                },
+                // We do not want guests to mess with power adjustments. QEMU also has this policy.
+                ValueDefinition {
+                    name: "waitpkg",
+                    bits_range: 5..=5,
+                    policy: ProfilePolicy::Static(0),
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "avx512_vbmi2",
+                    bits_range: 6..=6,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "cet_ss",
+                    bits_range: 7..=7,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "gfni",
+                    bits_range: 8..=8,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "vaes",
+                    bits_range: 9..=9,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "vpclmulqdq",
+                    bits_range: 10..=10,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "avx512_vnni",
+                    bits_range: 11..=11,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "avx512_bitalg",
+                    bits_range: 12..=12,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                // TDX related.
+                ValueDefinition {
+                    name: "tme_en",
+                    bits_range: 13..=13,
+                    policy: ProfilePolicy::Static(0),
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "avx512_vpopcntdq",
+                    bits_range: 14..=14,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "la57",
+                    bits_range: 16..=16,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                // TSX related which is deprecated
+                ValueDefinition {
+                    name: "mawau_val_lm",
+                    bits_range: 17..=21,
+                    policy: ProfilePolicy::Static(0),
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "rdpid",
+                    bits_range: 22..=22,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "bus_lock_detect",
+                    bits_range: 24..=24,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "cldemote",
+                    bits_range: 25..=25,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "movdiri",
+                    bits_range: 27..=27,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "movdir64b",
+                    bits_range: 28..=28,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                // Currently not exposed by KVM
+                ValueDefinition {
+                    name: "enqcmd",
+                    bits_range: 29..=29,
+                    policy: ProfilePolicy::Static(0),
+                    vendors: &[CpuVendor::Intel],
+                },
+                // SGX support is deprecated so we disable it unconditionally for CPU profiles
+                ValueDefinition {
+                    name: "sgx_lc",
+                    bits_range: 30..=30,
+                    policy: ProfilePolicy::Static(0),
+                    vendors: &[CpuVendor::Intel],
+                },
+                // Currently not supported by KVM
+                ValueDefinition {
+                    name: "pks",
+                    bits_range: 31..=31,
+                    policy: ProfilePolicy::Static(0),
+                    vendors: &[CpuVendor::Intel],
                 },
             ][..],
         ),
