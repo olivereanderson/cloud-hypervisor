@@ -1307,6 +1307,57 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 vendors: &[CpuVendor::Intel],
             }][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x7,
+                sub_leaf: 1..=1,
+                register: CpuidReg::EDX,
+            },
+            &[
+                ValueDefinition {
+                    name: "avx_vnni_int8",
+                    bits_range: 4..=4,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "avx_ne_convert",
+                    bits_range: 5..=5,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "amx_complex",
+                    bits_range: 8..=8,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "avx_vnni_int16",
+                    bits_range: 10..=10,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "prefetchit_0_1",
+                    bits_range: 14..=14,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "avx10",
+                    bits_range: 19..=19,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "apx_f",
+                    bits_range: 21..=21,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+            ][..],
+        ),
     ]
     .to_vec()
 }
