@@ -1503,4 +1503,18 @@ static CPUID_DEFINITIONS: &[(CpuidParameters, &[ValueDefinition])] = &[
             },
         ],
     ),
+    (
+        CpuidParameters {
+            leaf: 0xd,
+            sub_leaf: 0..=0,
+            register: CpuidReg::EBX,
+        },
+        // This is mutable and must be passthrough
+        &[ValueDefinition {
+            name: "xsave_sz_xcr0_enabled",
+            bits_range: 0..=31,
+            policy: ProfilePolicy::Passthrough,
+            vendors: AMD_AND_INTEL,
+        }],
+    ),
 ];
