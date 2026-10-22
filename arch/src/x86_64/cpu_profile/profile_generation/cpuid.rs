@@ -2575,4 +2575,43 @@ static CPUID_DEFINITIONS: &[(CpuidParameters, &[ValueDefinition])] = &[
             vendors: AMD_AND_INTEL,
         }],
     ),
+    (
+        CpuidParameters {
+            leaf: 0x8000_0000,
+            sub_leaf: 0..=0,
+            register: CpuidReg::EBX,
+        },
+        &[ValueDefinition {
+            name: "cpu_vendorid_0",
+            bits_range: 0..=31,
+            policy: ProfilePolicy::Inherit,
+            vendors: &[CpuVendor::AMD],
+        }],
+    ),
+    (
+        CpuidParameters {
+            leaf: 0x8000_0000,
+            sub_leaf: 0..=0,
+            register: CpuidReg::ECX,
+        },
+        &[ValueDefinition {
+            name: "cpu_vendorid_2",
+            bits_range: 0..=31,
+            policy: ProfilePolicy::Inherit,
+            vendors: &[CpuVendor::AMD],
+        }],
+    ),
+    (
+        CpuidParameters {
+            leaf: 0x8000_0000,
+            sub_leaf: 0..=0,
+            register: CpuidReg::EDX,
+        },
+        &[ValueDefinition {
+            name: "cpu_vendorid_1",
+            bits_range: 0..=31,
+            policy: ProfilePolicy::Inherit,
+            vendors: &[CpuVendor::AMD],
+        }],
+    ),
 ];
