@@ -2403,6 +2403,40 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 vendors: &[CpuVendor::Intel],
             }][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x24,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EAX,
+            },
+            &[ValueDefinition {
+                name: "converged_vector_isa_max_sub_leaves",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x24,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EBX,
+            },
+            &[
+                ValueDefinition {
+                    name: "avx_10_version",
+                    bits_range: 0..=7,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "avx_10_lengths",
+                    bits_range: 0..=7,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+            ][..],
+        ),
     ]
     .to_vec()
 }
