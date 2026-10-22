@@ -2177,6 +2177,19 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 },
             ][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x1d,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EAX,
+            },
+            &[ValueDefinition {
+                name: "amx_max_palette",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            }][..],
+        ),
     ]
     .to_vec()
 }
