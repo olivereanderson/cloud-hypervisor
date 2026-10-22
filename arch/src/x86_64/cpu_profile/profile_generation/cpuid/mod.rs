@@ -2018,6 +2018,59 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 },
             ][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0xd,
+                sub_leaf: 17..=17,
+                register: CpuidReg::EAX,
+            },
+            &[ValueDefinition {
+                name: "xsave_sz",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0xd,
+                sub_leaf: 17..=17,
+                register: CpuidReg::EBX,
+            },
+            &[ValueDefinition {
+                name: "xsave_offset",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0xd,
+                sub_leaf: 17..=17,
+                register: CpuidReg::ECX,
+            },
+            &[
+                ValueDefinition {
+                    name: "is_xss_bit",
+                    bits_range: 0..=0,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "compacted_xsave_64byte_aligned",
+                    bits_range: 1..=1,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "xfd_faulting",
+                    bits_range: 2..=2,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+            ][..],
+        ),
     ]
     .to_vec()
 }
