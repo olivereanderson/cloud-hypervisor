@@ -2245,6 +2245,40 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 vendors: &[CpuVendor::Intel],
             }][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x1e,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EAX,
+            },
+            &[ValueDefinition {
+                name: "tmul_info_max",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x1e,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EBX,
+            },
+            &[
+                ValueDefinition {
+                    name: "tmul_maxk",
+                    bits_range: 0..=7,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "tmul_maxn",
+                    bits_range: 8..=23,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::Intel],
+                },
+            ][..],
+        ),
     ]
     .to_vec()
 }
