@@ -2437,6 +2437,188 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 },
             ][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x4000_0000,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EAX,
+            },
+            &[ValueDefinition {
+                name: "max_hypervisor_leaf",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x4000_0000,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EBX,
+            },
+            &[ValueDefinition {
+                name: "hypervisor_string_ebx",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x4000_0000,
+                sub_leaf: 0..=0,
+                register: CpuidReg::ECX,
+            },
+            &[ValueDefinition {
+                name: "hypervisor_string_ecx",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x4000_0000,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EDX,
+            },
+            &[ValueDefinition {
+                name: "hypervisor_string_edx",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x4000_0001,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EAX,
+            },
+            &[
+                ValueDefinition {
+                    name: "kvm_feature_clocksource",
+                    bits_range: 0..=0,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "kvm_feature_nop_io_delay",
+                    bits_range: 1..=1,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "kvm_feature_mmu_op",
+                    bits_range: 2..=2,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "kvm_feature_clocksource2",
+                    bits_range: 3..=3,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "kvm_feature_async_pf",
+                    bits_range: 4..=4,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "kvm_feature_steal_time",
+                    bits_range: 5..=5,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "kvm_feature_pv_eoi",
+                    bits_range: 6..=6,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "kvm_feature_pv_unhalt",
+                    bits_range: 7..=7,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "kvm_feature_pv_tlb_flush",
+                    bits_range: 9..=9,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "kvm_feature_async_pf_vmexit",
+                    bits_range: 10..=10,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "kvm_feature_pv_send_ipi",
+                    bits_range: 11..=11,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "kvm_feature_poll_control",
+                    bits_range: 12..=12,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "kvm_feature_pv_sched_yield",
+                    bits_range: 13..=13,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "kvm_feature_async_pf_int",
+                    bits_range: 14..=14,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "kvm_feature_msi_ext_dest_id",
+                    bits_range: 15..=15,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "kvm_feature_hc_map_gpa_range",
+                    bits_range: 16..=16,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "kvm_feature_migration_control",
+                    bits_range: 17..=17,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "kvm_feature_clocksource_stable_bit",
+                    bits_range: 24..=24,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+            ][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x4000_0001,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EDX,
+            },
+            &[ValueDefinition {
+                name: "kvm_hints_realtime",
+                bits_range: 0..=0,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
     ]
     .to_vec()
 }
