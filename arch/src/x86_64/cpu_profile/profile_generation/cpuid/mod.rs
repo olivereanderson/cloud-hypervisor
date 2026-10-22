@@ -2342,6 +2342,67 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 },
             ][..],
         ),
+        // The values in leaf 0x1f must be set by CHV itself.
+        (
+            CpuidParameters {
+                leaf: 0x1f,
+                sub_leaf: 0..=u32::MAX,
+                register: CpuidReg::EAX,
+            },
+            &[ValueDefinition {
+                name: "x2apic_id_shift",
+                bits_range: 0..=4,
+                policy: ProfilePolicy::Passthrough,
+                vendors: &[CpuVendor::Intel],
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x1f,
+                sub_leaf: RangeInclusive::new(0, u32::MAX),
+                register: CpuidReg::EBX,
+            },
+            &[ValueDefinition {
+                name: "domain_lcpus_count",
+                bits_range: 0..=15,
+                policy: ProfilePolicy::Passthrough,
+                vendors: &[CpuVendor::Intel],
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x1f,
+                sub_leaf: RangeInclusive::new(0, u32::MAX),
+                register: CpuidReg::ECX,
+            },
+            &[
+                ValueDefinition {
+                    name: "domain_level",
+                    bits_range: 0..=7,
+                    policy: ProfilePolicy::Passthrough,
+                    vendors: &[CpuVendor::Intel],
+                },
+                ValueDefinition {
+                    name: "domain_type",
+                    bits_range: 8..=15,
+                    policy: ProfilePolicy::Passthrough,
+                    vendors: &[CpuVendor::Intel],
+                },
+            ][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x1f,
+                sub_leaf: RangeInclusive::new(0, u32::MAX),
+                register: CpuidReg::EDX,
+            },
+            &[ValueDefinition {
+                name: "x2apic_id",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Passthrough,
+                vendors: &[CpuVendor::Intel],
+            }][..],
+        ),
     ]
     .to_vec()
 }
