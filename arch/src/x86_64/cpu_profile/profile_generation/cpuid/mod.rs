@@ -2619,6 +2619,58 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 vendors: AMD_AND_INTEL,
             }][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x80000000,
+                sub_leaf: RangeInclusive::new(0, 0),
+                register: CpuidReg::EAX,
+            },
+            &[ValueDefinition {
+                name: "max_ext_leaf",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x80000000,
+                sub_leaf: RangeInclusive::new(0, 0),
+                register: CpuidReg::EBX,
+            },
+            &[ValueDefinition {
+                name: "cpu_vendorid_0",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Passthrough,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x80000000,
+                sub_leaf: RangeInclusive::new(0, 0),
+                register: CpuidReg::ECX,
+            },
+            &[ValueDefinition {
+                name: "cpu_vendorid_2",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Passthrough,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x80000000,
+                sub_leaf: RangeInclusive::new(0, 0),
+                register: CpuidReg::EDX,
+            },
+            &[ValueDefinition {
+                name: "cpu_vendorid_1",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Passthrough,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
     ]
     .to_vec()
 }
