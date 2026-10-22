@@ -2146,4 +2146,59 @@ static CPUID_DEFINITIONS: &[(CpuidParameters, &[ValueDefinition])] = &[
             vendors: &[CpuVendor::Intel],
         }],
     ),
+    (
+        CpuidParameters {
+            leaf: 0x1d,
+            sub_leaf: 1..=1,
+            register: CpuidReg::EAX,
+        },
+        &[
+            ValueDefinition {
+                name: "amx_palette_size",
+                bits_range: 0..=15,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "amx_tile_size",
+                bits_range: 16..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+        ],
+    ),
+    (
+        CpuidParameters {
+            leaf: 0x1d,
+            sub_leaf: 1..=1,
+            register: CpuidReg::EBX,
+        },
+        &[
+            ValueDefinition {
+                name: "amx_tile_row_size",
+                bits_range: 0..=15,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "amx_palette_nr_tiles",
+                bits_range: 16..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+        ],
+    ),
+    (
+        CpuidParameters {
+            leaf: 0x1d,
+            sub_leaf: 1..=1,
+            register: CpuidReg::ECX,
+        },
+        &[ValueDefinition {
+            name: "amx_tile_nr_rows",
+            bits_range: 0..=15,
+            policy: ProfilePolicy::Inherit,
+            vendors: &[CpuVendor::Intel],
+        }],
+    ),
 ];
