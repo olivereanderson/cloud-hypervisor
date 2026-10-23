@@ -2718,6 +2718,96 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 },
             ][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x80000001,
+                sub_leaf: 0..=0,
+                register: CpuidReg::ECX,
+            },
+            &[
+                ValueDefinition {
+                    name: "lahf_lm",
+                    bits_range: 0..=0,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                // Set by CH at runtime depending on topology setup
+                ValueDefinition {
+                    name: "cmp_legacy",
+                    bits_range: 1..=1,
+                    policy: ProfilePolicy::Passthrough,
+                    vendors: &[CpuVendor::AMD],
+                },
+                // Must be supported in order to launch CH on AMD processors.
+                // The guest should see this depending on runtime config.
+                ValueDefinition {
+                    name: "svm",
+                    bits_range: 2..=2,
+                    policy: ProfilePolicy::Passthrough,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "cr8_legacy",
+                    bits_range: 4..=4,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "lzcnt",
+                    bits_range: 5..=5,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "sse4a",
+                    bits_range: 6..=6,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "mis_align_sse",
+                    bits_range: 7..=7,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "prefetchw",
+                    bits_range: 8..=8,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "osvw",
+                    bits_range: 9..=9,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "xop",
+                    bits_range: 11..=11,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "fma4",
+                    bits_range: 16..=16,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "tbm",
+                    bits_range: 21..=21,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "topology_extensions",
+                    bits_range: 22..=22,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+            ][..],
+        ),
     ]
     .to_vec()
 }
