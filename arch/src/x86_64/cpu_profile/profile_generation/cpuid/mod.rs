@@ -1,10 +1,12 @@
-use std::ops::RangeInclusive;
+use std::ops::{BitOr, RangeInclusive, Shl};
 
-use hypervisor::CpuVendor;
+use hypervisor::arch::x86::CpuIdEntry;
+use hypervisor::{CpuVendor, Hypervisor, HypervisorError};
 
 use crate::x86_64::CpuidReg;
-use crate::x86_64::Error::CpuProfileCpuidIncompatibility;
-use crate::x86_64::cpu_profile::cpuid_adjustments::CpuidParameters;
+use crate::x86_64::cpu_profile::cpuid_adjustments::{
+    CpuidOutputRegisterAdjustments, CpuidParameters, CpuidProfileData,
+};
 // pub mod amd_definitions;
 // pub mod common_definitions;
 // pub mod intel_definitions;
@@ -2673,4 +2675,152 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
         ),
     ]
     .to_vec()
+}
+
+pub fn generate_profile(hypervisor: &dyn Hypervisor) -> CpuidProfileData {
+    let supported_cpuid = supported_cpuid(hypervisor);
+    let supported_cpuid_sorted = sort_entries(supported_cpuid);
+
+    let vendor = hypervisor.get_cpu_vendor();
+    let processor_cpuid_definitions = cpuid_definitions();
+
+    let mut adjustments: Vec<(CpuidParameters, CpuidOutputRegisterAdjustments)> = Vec::new();
+
+    for (parameter, values) in processor_cpuid_definitions.as_slice().iter() {
+        for (sub_leaf_range, maybe_matching_register_output_value) in
+            extract_parameter_matches(parameter, &supported_cpuid_sorted)
+        {
+            // If the compatibility target (current host) has multiple sub-leaves matching the parameter's range
+            // then we want to specialize:
+            let mut mask: u32 = 0;
+            let mut replacements: u32 = 0;
+            for value in *values {
+                // Reality check on the bit range listed in `value`
+                {
+                    assert!(*value.bits_range.end() < 32);
+                }
+                if !value.vendors.contains(&vendor) {
+                    continue;
+                }
+                match value.policy {
+                    ProfilePolicy::Passthrough => {
+                        // The profile should take whatever we get from the host, hence there is no adjustment, but our
+                        // mask needs to retain all bits in the range of bits corresponding to this value
+                        mask |= bit_range_mask::<u32>(value.bits_range.clone());
+                    }
+                    ProfilePolicy::Static(overwrite_value) => {
+                        replacements |= overwrite_value << *value.bits_range.start();
+                    }
+                    ProfilePolicy::Inherit => {
+                        // The value is supposed to be obtained from the compatibility target if it exists
+                        if let Some(matching_register_value) = maybe_matching_register_output_value
+                        {
+                            let extraction_mask = bit_range_mask::<u32>(value.bits_range.clone());
+                            let value = matching_register_value & extraction_mask;
+                            replacements |= value;
+                        }
+                    }
+                }
+            }
+            adjustments.push((
+                CpuidParameters {
+                    leaf: parameter.leaf,
+                    sub_leaf: sub_leaf_range,
+                    register: parameter.register,
+                },
+                CpuidOutputRegisterAdjustments { mask, replacements },
+            ));
+        }
+    }
+
+    CpuidProfileData { adjustments }
+}
+
+/// Sort the CPUID entries by function and index
+fn sort_entries(mut cpuid: Vec<CpuIdEntry>) -> Vec<CpuIdEntry> {
+    cpuid.sort_unstable_by(|entry, other_entry| {
+        let fn_cmp = entry.function.cmp(&other_entry.function);
+        if fn_cmp == core::cmp::Ordering::Equal {
+            entry.index.cmp(&other_entry.index)
+        } else {
+            fn_cmp
+        }
+    });
+    cpuid
+}
+
+/// Get as many of the supported CPUID entries from the hypervisor as possible.
+fn supported_cpuid(hypervisor: &dyn Hypervisor) -> Vec<CpuIdEntry> {
+    // Check for AMX compatibility. If this is supported we need to call arch_prctl before requesting the supported
+    // CPUID entries from the hypervisor. We simply call the enable_amx_state_components method on the hypervisor and
+    // ignore any AMX not supported error to achieve this.
+    match hypervisor.enable_amx_state_components() {
+        Ok(()) => {}
+        Err(HypervisorError::CouldNotEnableAmxStateComponents(amx_err)) => {
+            if matches!(
+                amx_err,
+                hypervisor::arch::x86::AmxGuestSupportError::AmxGuestTileRequest { .. }
+            ) {
+                panic!("Unable to enable AMX state tiles for guests");
+            }
+        }
+        Err(_) => unreachable!("Unexpected error when checking AMX support"),
+    }
+
+    hypervisor.get_supported_cpuid().unwrap()
+}
+
+/// Returns a numeric value where each bit between `first_bit_pos` and `last_bit_pos` is set (including both ends) and all other bits are 0.
+fn bit_range_mask<T>(range: RangeInclusive<u8>) -> T
+where
+    T: Shl<u8, Output = T>,
+    T: BitOr<Output = T>,
+    T: From<u8>,
+{
+    (range).fold(T::from(0_u8), |acc, next| acc | ((T::from(1_u8)) << next))
+}
+/// Returns a vector of exact parameter matches ((sub_leaf ..= sub_leaf), register_value) interleaved by
+/// the sub_leaf ranges specified by `param` that did not match any cpuid entry.
+fn extract_parameter_matches(
+    param: &CpuidParameters,
+    supported_cpuid_sorted: &[CpuIdEntry],
+) -> Vec<(RangeInclusive<u32>, Option<u32>)> {
+    let register_value = |entry: &CpuIdEntry| -> u32 {
+        match param.register {
+            CpuidReg::EAX => entry.eax,
+            CpuidReg::EBX => entry.ebx,
+            CpuidReg::ECX => entry.ecx,
+            CpuidReg::EDX => entry.edx,
+        }
+    };
+    let mut out = Vec::new();
+    let param_range = param.sub_leaf.clone();
+    let mut range_for_consideration = param_range.clone();
+    let range_end = *range_for_consideration.end();
+    for sub_leaf_entry in supported_cpuid_sorted
+        .iter()
+        .filter(|entry| entry.function == param.leaf && param_range.contains(&entry.index))
+    {
+        let matching_subleaf = sub_leaf_entry.index;
+
+        // If we are in the middle of the range, it means there is no entry matching the first few sub-leaves within the range
+        let current_range_start = *range_for_consideration.start();
+        if current_range_start < matching_subleaf {
+            let range_not_matching = RangeInclusive::new(current_range_start, matching_subleaf - 1);
+            out.push((range_not_matching, None));
+        }
+
+        out.push((
+            RangeInclusive::new(matching_subleaf, matching_subleaf),
+            Some(register_value(sub_leaf_entry)),
+        ));
+        if matching_subleaf == range_end {
+            return out;
+        }
+        // Update range_for_consideration: Note that we must have index + 1 <= range_end
+        range_for_consideration = RangeInclusive::new(matching_subleaf + 1, range_end);
+    }
+    // We did not find the last entry within the range hence we push the final range for consideration together with no matching register value
+    out.push((range_for_consideration, None));
+    out
 }
