@@ -2981,6 +2981,162 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 },
             ][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x80000002,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EAX,
+            },
+            &[ValueDefinition {
+                name: "cpu_brandid_0",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x80000002,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EBX,
+            },
+            &[ValueDefinition {
+                name: "cpu_brandid_1",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x80000002,
+                sub_leaf: 0..=0,
+                register: CpuidReg::ECX,
+            },
+            &[ValueDefinition {
+                name: "cpu_brandid_2",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x80000002,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EDX,
+            },
+            &[ValueDefinition {
+                name: "cpu_brandid_3",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x80000003,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EAX,
+            },
+            &[ValueDefinition {
+                name: "cpu_brandid_4",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x80000003,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EBX,
+            },
+            &[ValueDefinition {
+                name: "cpu_brandid_5",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x80000003,
+                sub_leaf: 0..=0,
+                register: CpuidReg::ECX,
+            },
+            &[ValueDefinition {
+                name: "cpu_brandid_6",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x80000003,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EDX,
+            },
+            &[ValueDefinition {
+                name: "cpu_brandid_7",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x80000004,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EAX,
+            },
+            &[ValueDefinition {
+                name: "cpu_brandid_8",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x80000004,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EBX,
+            },
+            &[ValueDefinition {
+                name: "cpu_brandid_9",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x80000004,
+                sub_leaf: RangeInclusive::new(0, 0),
+                register: CpuidReg::ECX,
+            },
+            &[ValueDefinition {
+                name: "cpu_brandid_10",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x80000004,
+                sub_leaf: RangeInclusive::new(0, 0),
+                register: CpuidReg::EDX,
+            },
+            &[ValueDefinition {
+                name: "cpu_brandid_11",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
     ]
     .to_vec()
 }
