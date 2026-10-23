@@ -2673,6 +2673,51 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 vendors: AMD_AND_INTEL,
             }][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x8000_0001,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EAX,
+            },
+            &[
+                ValueDefinition {
+                    name: "stepping",
+                    bits_range: 0..=3,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "base_model",
+                    bits_range: 4..=7,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "base_family_id",
+                    bits_range: 8..=11,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "cpu_type",
+                    bits_range: 12..=13,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "ext_model",
+                    bits_range: 16..=19,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "ext_family",
+                    bits_range: 20..=27,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+            ][..],
+        ),
     ]
     .to_vec()
 }
