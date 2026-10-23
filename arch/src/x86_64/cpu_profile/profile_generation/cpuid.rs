@@ -1,7 +1,14 @@
+use std::cmp;
+use std::ops::RangeInclusive;
+
+use hypervisor::arch::x86::CpuIdEntry;
+use hypervisor::{CpuVendor, Hypervisor, HypervisorError};
+
 use super::AMD_AND_INTEL;
 use crate::x86_64::CpuidReg;
-use crate::x86_64::Error::CpuProfileCpuidIncompatibility;
-use crate::x86_64::cpu_profile::cpuid_adjustments::CpuidParameters;
+use crate::x86_64::cpu_profile::cpuid_adjustments::{
+    CpuidOutputRegisterAdjustments, CpuidParameters, CpuidProfileData,
+};
 use crate::x86_64::cpu_profile::profile_generation::ProfilePolicy;
 
 type ValueDefinition = super::ValueDefinition<u32>;
@@ -4006,3 +4013,144 @@ static CPUID_DEFINITIONS: &[(CpuidParameters, &[ValueDefinition])] = &[
         ],
     ),
 ];
+
+pub(super) fn generate_cpuid_profile_data_with(
+    supported_cpuid: Vec<CpuIdEntry>,
+    vendor: CpuVendor,
+) -> CpuidProfileData {
+    const MAX_STD_LEAF_LEAF: u32 = 0x0;
+    const MAX_EXT_LEAF_LEAF: u32 = 0x8000_0000;
+    const MAX_STD_LEAF_FALLBACK: u32 = 0x24;
+
+    let supported_cpuid_sorted = sort_entries(supported_cpuid);
+
+    let mut adjustments: Vec<(CpuidParameters, CpuidOutputRegisterAdjustments)> = Vec::new();
+
+    let mut max_recorded_std_leaf = 0;
+    let max_supported_std_leaf = supported_cpuid_sorted
+        .iter()
+        .find_map(|entry| {
+            (entry.function == MAX_STD_LEAF_LEAF && entry.index == 0).then_some(entry.eax)
+        })
+        .unwrap_or(MAX_STD_LEAF_FALLBACK);
+
+    let mut max_recored_ext_leaf = 0;
+    let max_supported_ext_leaf = supported_cpuid_sorted
+        .iter()
+        .find_map(|entry| {
+            (entry.function == MAX_EXT_LEAF_LEAF && entry.index == 0).then_some(entry.eax)
+        })
+        .unwrap_or(0);
+
+    for (parameter, value_definitions) in CPUID_DEFINITIONS {
+        let leaf = parameter.leaf;
+        let register = parameter.register;
+
+        let mask = ValueDefinition::mask(value_definitions, vendor);
+
+        for supported_cpuid_entry in &supported_cpuid_sorted {
+            let index = supported_cpuid_entry.index;
+
+            if supported_cpuid_entry.function == parameter.leaf
+                && parameter.sub_leaf.contains(&index)
+            {
+                let register_value = match register {
+                    CpuidReg::EAX => supported_cpuid_entry.eax,
+                    CpuidReg::EBX => supported_cpuid_entry.ebx,
+                    CpuidReg::ECX => supported_cpuid_entry.ecx,
+                    CpuidReg::EDX => supported_cpuid_entry.edx,
+                };
+
+                let replacements =
+                    ValueDefinition::replacements(value_definitions, register_value, vendor);
+                adjustments.push((
+                    CpuidParameters {
+                        leaf,
+                        sub_leaf: index..=index,
+                        register,
+                    },
+                    CpuidOutputRegisterAdjustments {
+                        replacements,
+                        mask: mask.unwrap_or(0),
+                    },
+                ));
+
+                if leaf <= max_supported_std_leaf {
+                    max_recorded_std_leaf = cmp::max(max_recorded_std_leaf, leaf);
+                }
+
+                if (MAX_EXT_LEAF_LEAF..=max_supported_ext_leaf).contains(&leaf) {
+                    max_recored_ext_leaf = cmp::max(max_recored_ext_leaf, leaf);
+                }
+            }
+        }
+    }
+
+    let max_std_leaf_param = CpuidParameters {
+        leaf: MAX_STD_LEAF_LEAF,
+        sub_leaf: 0..=0,
+        register: CpuidReg::EAX,
+    };
+    assert!(
+        !adjustments
+            .iter()
+            .any(|(param, _)| param == &max_std_leaf_param)
+    );
+
+    adjustments.insert(
+        0,
+        (
+            max_std_leaf_param,
+            CpuidOutputRegisterAdjustments {
+                replacements: max_recorded_std_leaf,
+                mask: 0,
+            },
+        ),
+    );
+
+    let max_ext_leaf_param = CpuidParameters {
+        leaf: MAX_EXT_LEAF_LEAF,
+        sub_leaf: 0..=0,
+        register: CpuidReg::EAX,
+    };
+    assert!(
+        !adjustments
+            .iter()
+            .any(|(param, _)| param == &max_ext_leaf_param)
+    );
+
+    let first_ext_leaf_position = adjustments
+        .iter()
+        .position(|(param, _)| param.leaf > MAX_EXT_LEAF_LEAF)
+        .unwrap_or(adjustments.len());
+
+    adjustments.insert(
+        first_ext_leaf_position - 1,
+        (
+            CpuidParameters {
+                leaf: MAX_EXT_LEAF_LEAF,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EAX,
+            },
+            CpuidOutputRegisterAdjustments {
+                replacements: max_recored_ext_leaf,
+                mask: 0,
+            },
+        ),
+    );
+
+    CpuidProfileData { adjustments }
+}
+
+/// Sort the CPUID entries by function and index
+fn sort_entries(mut cpuid: Vec<CpuIdEntry>) -> Vec<CpuIdEntry> {
+    cpuid.sort_unstable_by(|entry, other_entry| {
+        let fn_cmp = entry.function.cmp(&other_entry.function);
+        if fn_cmp == core::cmp::Ordering::Equal {
+            entry.index.cmp(&other_entry.index)
+        } else {
+            fn_cmp
+        }
+    });
+    cpuid
+}
