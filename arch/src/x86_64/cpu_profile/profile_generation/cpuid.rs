@@ -3398,6 +3398,19 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 },
             ][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x80000007,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EDX,
+            },
+            &[ValueDefinition {
+                name: "invtsc",
+                bits_range: 0..=7,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            }][..],
+        ),
     ]
     .to_vec()
 }
