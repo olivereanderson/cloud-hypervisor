@@ -3309,4 +3309,37 @@ static CPUID_DEFINITIONS: &[(CpuidParameters, &[ValueDefinition])] = &[
             },
         ],
     ),
+    (
+        CpuidParameters {
+            leaf: 0x80000006,
+            sub_leaf: 0..=0,
+            register: CpuidReg::ECX,
+        },
+        &[
+            ValueDefinition {
+                name: "l3_line_size",
+                bits_range: 0..=7,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "l3_lines_per_tag",
+                bits_range: 8..=11,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "l3_assoc",
+                bits_range: 12..=15,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "l3_size",
+                bits_range: 18..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+        ],
+    ),
 ];
