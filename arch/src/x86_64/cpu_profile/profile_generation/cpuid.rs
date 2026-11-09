@@ -3368,4 +3368,33 @@ static CPUID_DEFINITIONS: &[(CpuidParameters, &[ValueDefinition])] = &[
             vendors: AMD_AND_INTEL,
         }],
     ),
+    (
+        CpuidParameters {
+            leaf: 0x80000008,
+            sub_leaf: 0..=0,
+            register: CpuidReg::EAX,
+        },
+        &[
+            // Set by Cloud Hypervisor
+            ValueDefinition {
+                name: "phys_addr_bits",
+                bits_range: 0..=7,
+                policy: ProfilePolicy::Passthrough,
+                vendors: AMD_AND_INTEL,
+            },
+            ValueDefinition {
+                name: "virt_addr_bits",
+                bits_range: 8..=15,
+                policy: ProfilePolicy::Inherit,
+                vendors: AMD_AND_INTEL,
+            },
+            // Set by Cloud Hypervisor
+            ValueDefinition {
+                name: "guest_phys_addr_bits",
+                bits_range: 16..=23,
+                policy: ProfilePolicy::Passthrough,
+                vendors: AMD_AND_INTEL,
+            },
+        ],
+    ),
 ];
