@@ -3440,6 +3440,101 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 },
             ][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x80000008,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EBX,
+            },
+            &[
+                ValueDefinition {
+                    name: "ibpb_ret",
+                    bits_range: 30..=30,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "psfd",
+                    bits_range: 28..=28,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "ssbd_not_required",
+                    bits_range: 26..=26,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "ssbd_virt_spec_ctrl",
+                    bits_range: 25..=25,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "ssbd",
+                    bits_range: 24..=24,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                // Always set defeature bit.
+                // Very recent KVM does this always on Intel and AMD always sets this since Zen 3.
+                ValueDefinition {
+                    name: "efer_lmsle_unsupported",
+                    bits_range: 20..=20,
+                    policy: ProfilePolicy::Static(1),
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "ibrs_same_mode",
+                    bits_range: 19..=19,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "stibp_always_on",
+                    bits_range: 17..=17,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "stibp",
+                    bits_range: 15..=15,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "ibrs",
+                    bits_range: 14..=14,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "ibpb",
+                    bits_range: 12..=12,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "wbnoinvd",
+                    bits_range: 9..=9,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: AMD_AND_INTEL,
+                },
+                ValueDefinition {
+                    name: "rstr_fp_err_ptrs",
+                    bits_range: 2..=2,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "clzero",
+                    bits_range: 0..=0,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+            ][..],
+        ),
     ]
     .to_vec()
 }
