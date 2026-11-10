@@ -3535,6 +3535,35 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 },
             ][..],
         ),
+        // These are all set by Cloud Hypervisor according to
+        // runtime configuration
+        (
+            CpuidParameters {
+                leaf: 0x80000008,
+                sub_leaf: 0..=0,
+                register: CpuidReg::ECX,
+            },
+            &[
+                ValueDefinition {
+                    name: "perf_tsc_size",
+                    bits_range: 16..=17,
+                    policy: ProfilePolicy::Passthrough,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "apic_id_size",
+                    bits_range: 12..=15,
+                    policy: ProfilePolicy::Passthrough,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "nc",
+                    bits_range: 0..=7,
+                    policy: ProfilePolicy::Passthrough,
+                    vendors: &[CpuVendor::AMD],
+                },
+            ][..],
+        ),
     ]
     .to_vec()
 }
