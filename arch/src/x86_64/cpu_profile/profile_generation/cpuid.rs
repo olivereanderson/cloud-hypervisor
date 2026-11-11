@@ -3564,6 +3564,119 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 },
             ][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x8000000a,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EAX,
+            },
+            &[ValueDefinition {
+                name: "svm_rev",
+                bits_range: 0..=7,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x8000000a,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EBX,
+            },
+            &[ValueDefinition {
+                name: "nasid",
+                bits_range: 0..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            }][..],
+        ),
+        (
+            CpuidParameters {
+                leaf: 0x8000000a,
+                sub_leaf: 0..=0,
+                register: CpuidReg::EDX,
+            },
+            &[
+                ValueDefinition {
+                    name: "nested_virt_vmcb_addr_chk",
+                    bits_range: 28..=28,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "vnmi",
+                    bits_range: 25..=25,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "gmet",
+                    bits_range: 17..=17,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "vgif",
+                    bits_range: 16..=16,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "vmsave_virt",
+                    bits_range: 15..=15,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "pause_filter_threshold",
+                    bits_range: 12..=12,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "pause_filter",
+                    bits_range: 10..=10,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "flush_by_asid",
+                    bits_range: 6..=6,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "vmcb_clean",
+                    bits_range: 5..=5,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "tsc_rate_msr",
+                    bits_range: 4..=4,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "nrips",
+                    bits_range: 3..=3,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "lbr_virt",
+                    bits_range: 1..=1,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "np",
+                    bits_range: 0..=0,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+            ][..],
+        ),
     ]
     .to_vec()
 }
