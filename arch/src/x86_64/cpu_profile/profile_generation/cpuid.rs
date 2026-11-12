@@ -3687,4 +3687,31 @@ static CPUID_DEFINITIONS: &[(CpuidParameters, &[ValueDefinition])] = &[
             },
         ],
     ),
+    (
+        CpuidParameters {
+            leaf: 0x8000_001a,
+            sub_leaf: 0..=0,
+            register: CpuidReg::EAX,
+        },
+        &[
+            ValueDefinition {
+                name: "fp128",
+                bits_range: 0..=0,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "movu",
+                bits_range: 1..=1,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "fp256",
+                bits_range: 2..=2,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+        ],
+    ),
 ];
