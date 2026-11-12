@@ -3634,4 +3634,37 @@ static CPUID_DEFINITIONS: &[(CpuidParameters, &[ValueDefinition])] = &[
             },
         ],
     ),
+    (
+        CpuidParameters {
+            leaf: 0x8000_0019,
+            sub_leaf: 0..=0,
+            register: CpuidReg::EAX,
+        },
+        &[
+            ValueDefinition {
+                name: "l1d_tlb_1g_assoc",
+                bits_range: 28..=31,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "l1d_tlb_1g_size",
+                bits_range: 16..=27,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "l1i_tlb_1g_assoc",
+                bits_range: 12..=15,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "l1i_tlb_1g_size",
+                bits_range: 0..=11,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+        ],
+    ),
 ];
