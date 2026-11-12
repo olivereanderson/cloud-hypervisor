@@ -3727,4 +3727,46 @@ static CPUID_DEFINITIONS: &[(CpuidParameters, &[ValueDefinition])] = &[
             },
         ],
     ),
+    (
+        CpuidParameters {
+            leaf: 0x8000_001d,
+            sub_leaf: 0..=u32::MAX,
+            register: CpuidReg::EAX,
+        },
+        &[
+            ValueDefinition {
+                name: "cache_type",
+                bits_range: 0..=4,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "cache_level",
+                bits_range: 5..=7,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "self_initialization",
+                bits_range: 8..=8,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "fully_associative",
+                bits_range: 9..=9,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            // Note that runtime CPU topology also
+            // influences what is ultimately displayed
+            // to the guest.
+            ValueDefinition {
+                name: "num_sharing_cache",
+                bits_range: 14..=25,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+        ],
+    ),
 ];
