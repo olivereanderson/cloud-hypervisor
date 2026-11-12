@@ -3810,6 +3810,33 @@ pub fn cpuid_definitions() -> Vec<(CpuidParameters, &'static [ValueDefinition])>
                 },
             ][..],
         ),
+        (
+            CpuidParameters {
+                leaf: 0x8000_001d,
+                sub_leaf: 0..=u32::MAX,
+                register: CpuidReg::EBX,
+            },
+            &[
+                ValueDefinition {
+                    name: "cache_line_size",
+                    bits_range: 0..=11,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "cache_phys_partitions",
+                    bits_range: 12..=21,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+                ValueDefinition {
+                    name: "cache_num_ways",
+                    bits_range: 22..=31,
+                    policy: ProfilePolicy::Inherit,
+                    vendors: &[CpuVendor::AMD],
+                },
+            ][..],
+        ),
     ]
     .to_vec()
 }
