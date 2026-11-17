@@ -3997,4 +3997,25 @@ static CPUID_DEFINITIONS: &[(CpuidParameters, &[ValueDefinition])] = &[
             vendors: &[CpuVendor::AMD],
         }],
     ),
+    (
+        CpuidParameters {
+            leaf: 0x8000_0021,
+            sub_leaf: 0..=0,
+            register: CpuidReg::ECX,
+        },
+        &[
+            ValueDefinition {
+                name: "tsa_sq_no",
+                bits_range: 1..=1,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "tsa_l1_no",
+                bits_range: 2..=2,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+        ],
+    ),
 ];
