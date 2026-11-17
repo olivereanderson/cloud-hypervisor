@@ -3872,4 +3872,103 @@ static CPUID_DEFINITIONS: &[(CpuidParameters, &[ValueDefinition])] = &[
             },
         ],
     ),
+    (
+        CpuidParameters {
+            leaf: 0x8000_0021,
+            sub_leaf: 0..=0,
+            register: CpuidReg::EAX,
+        },
+        &[
+            ValueDefinition {
+                name: "no_nested_data_bp",
+                bits_range: 0..=0,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "fs_gs_base_write_not_serializing",
+                bits_range: 1..=1,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "lfence_always_serializing",
+                bits_range: 2..=2,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "verw_clear",
+                bits_range: 5..=5,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "null_select_clears_base",
+                bits_range: 6..=6,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "automatic_ibrs",
+                bits_range: 8..=8,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "no_smm_ctl_msr",
+                bits_range: 9..=9,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "cpuid_user_dis",
+                bits_range: 17..=17,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "prefetchi",
+                bits_range: 20..=20,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "avx512_bmm",
+                bits_range: 23..=23,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "eraps",
+                bits_range: 24..=24,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "sbpb",
+                bits_range: 27..=27,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "ibpb_brtype",
+                bits_range: 28..=28,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "srso_no",
+                bits_range: 29..=29,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "srso_user_kernel_no",
+                bits_range: 30..=30,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::AMD],
+            },
+        ],
+    ),
 ];
