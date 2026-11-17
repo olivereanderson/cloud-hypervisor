@@ -3971,4 +3971,17 @@ static CPUID_DEFINITIONS: &[(CpuidParameters, &[ValueDefinition])] = &[
             },
         ],
     ),
+    (
+        CpuidParameters {
+            leaf: 0x8000_0021,
+            sub_leaf: 0..=0,
+            register: CpuidReg::EBX,
+        },
+        &[ValueDefinition {
+            name: "rap_size",
+            bits_range: 16..=23,
+            policy: ProfilePolicy::Inherit,
+            vendors: &[CpuVendor::AMD],
+        }],
+    ),
 ];
