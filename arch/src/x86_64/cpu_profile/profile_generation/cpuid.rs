@@ -3817,4 +3817,59 @@ static CPUID_DEFINITIONS: &[(CpuidParameters, &[ValueDefinition])] = &[
             },
         ],
     ),
+    (
+        CpuidParameters {
+            leaf: 0x8000_001e,
+            sub_leaf: 0..=0,
+            register: CpuidReg::EAX,
+        },
+        &[ValueDefinition {
+            name: "extended_apic_id",
+            bits_range: 0..=31,
+            policy: ProfilePolicy::Passthrough,
+            vendors: &[CpuVendor::AMD],
+        }],
+    ),
+    (
+        CpuidParameters {
+            leaf: 0x8000_001e,
+            sub_leaf: 0..=0,
+            register: CpuidReg::EBX,
+        },
+        &[
+            ValueDefinition {
+                name: "compute_unit_id",
+                bits_range: 0..=7,
+                policy: ProfilePolicy::Passthrough,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "threads_per_compute_unit",
+                bits_range: 8..=15,
+                policy: ProfilePolicy::Passthrough,
+                vendors: &[CpuVendor::AMD],
+            },
+        ],
+    ),
+    (
+        CpuidParameters {
+            leaf: 0x8000_001e,
+            sub_leaf: 0..=0,
+            register: CpuidReg::ECX,
+        },
+        &[
+            ValueDefinition {
+                name: "node_id",
+                bits_range: 0..=7,
+                policy: ProfilePolicy::Passthrough,
+                vendors: &[CpuVendor::AMD],
+            },
+            ValueDefinition {
+                name: "nodes_per_processor",
+                bits_range: 8..=10,
+                policy: ProfilePolicy::Passthrough,
+                vendors: &[CpuVendor::AMD],
+            },
+        ],
+    ),
 ];
