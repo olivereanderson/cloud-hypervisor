@@ -1,5 +1,5 @@
 use hypervisor::CpuVendor;
-use hypervisor::arch::x86::msr_index::MSR_IA32_UCODE_REV;
+use hypervisor::arch::x86::msr_index::{MSR_IA32_UCODE_REV, MSR_IA32_VMX_BASIC};
 
 use super::ProfilePolicy;
 
@@ -162,6 +162,47 @@ pub static FEATURE_MSR_DEFINITIONS: &[(u32, &[ValueDefinition])] = &[
             ValueDefinition {
                 name: "its_no",
                 bits_range: 62..=62,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+        ],
+    ),
+    (
+        MSR_IA32_VMX_BASIC,
+        &[
+            ValueDefinition {
+                name: "vmcs_rev_id",
+                bits_range: (0..=31),
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "region_size",
+                bits_range: (32..=44),
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "mem_type",
+                bits_range: (50..=53),
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "vm_exit_info_ins_outs",
+                bits_range: (54..=54),
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "vmx_ctrls_default_mut",
+                bits_range: (55..=55),
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "vm_entry_hardware_exceptions",
+                bits_range: (56..=56),
                 policy: ProfilePolicy::Inherit,
                 vendors: &[CpuVendor::Intel],
             },
