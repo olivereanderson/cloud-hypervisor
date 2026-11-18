@@ -12,6 +12,7 @@ type ValueDefinition = super::ValueDefinition<u64>;
 
 const MSR_AMD64_DE_CFG: u32 = 0xc0011029;
 const MSR_IA32_ARCH_CAPABILITIES: u32 = 0x10a;
+const MSR_IA32_VMX_EXIT_CTLS2: u32 = 0x493;
 
 pub static FEATURE_MSR_DEFINITIONS: &[(u32, &[ValueDefinition])] = &[
     (
@@ -2001,6 +2002,29 @@ pub static FEATURE_MSR_DEFINITIONS: &[(u32, &[ValueDefinition])] = &[
             ValueDefinition {
                 name: "allowed_one_1_63",
                 bits_range: 1..=63,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+        ],
+    ),
+    (
+        MSR_IA32_VMX_EXIT_CTLS2,
+        &[
+            ValueDefinition {
+                name: "allowed_one_0_2",
+                bits_range: 0..=2,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "allowed_one_prematurely_busy_shadow_stack",
+                bits_range: 3..=3,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "allowed_one_4_63",
+                bits_range: 4..=63,
                 policy: ProfilePolicy::Inherit,
                 vendors: &[CpuVendor::Intel],
             },
