@@ -1,9 +1,9 @@
 use hypervisor::CpuVendor;
 use hypervisor::arch::x86::msr_index::{
     MSR_IA32_UCODE_REV, MSR_IA32_VMX_BASIC, MSR_IA32_VMX_CR0_FIXED0, MSR_IA32_VMX_CR4_FIXED0,
-    MSR_IA32_VMX_MISC, MSR_IA32_VMX_PROCBASED_CTLS2, MSR_IA32_VMX_TRUE_ENTRY_CTLS,
-    MSR_IA32_VMX_TRUE_EXIT_CTLS, MSR_IA32_VMX_TRUE_PINBASED_CTLS, MSR_IA32_VMX_TRUE_PROCBASED_CTLS,
-    MSR_IA32_VMX_VMCS_ENUM,
+    MSR_IA32_VMX_EPT_VPID_CAP, MSR_IA32_VMX_MISC, MSR_IA32_VMX_PROCBASED_CTLS2,
+    MSR_IA32_VMX_TRUE_ENTRY_CTLS, MSR_IA32_VMX_TRUE_EXIT_CTLS, MSR_IA32_VMX_TRUE_PINBASED_CTLS,
+    MSR_IA32_VMX_TRUE_PROCBASED_CTLS, MSR_IA32_VMX_VMCS_ENUM,
 };
 
 use super::{ProfilePolicy, ValueDefinition};
@@ -1863,6 +1863,125 @@ pub static FEATURE_MSR_DEFINITIONS: &[(u32, &[ValueDefinition])] = &[
             ValueDefinition {
                 name: "allowed_one_instruction_timeout",
                 bits_range: 63..=63,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+        ],
+    ),
+    (
+        MSR_IA32_VMX_EPT_VPID_CAP,
+        &[
+            ValueDefinition {
+                name: "ept_execute_only",
+                bits_range: 0..=0,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "page_walk_length_4",
+                bits_range: 6..=6,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "page_walk_length_5",
+                bits_range: 7..=7,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "ept_mem_type_uc",
+                bits_range: 8..=8,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "ept_mem_type_wb",
+                bits_range: 14..=14,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "ept_pde_2m",
+                bits_range: 16..=16,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "ept_pdpte_1g",
+                bits_range: 17..=17,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "invept",
+                bits_range: 20..=20,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "flags_ept",
+                bits_range: 21..=21,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "vm_exit_violations_info",
+                bits_range: 22..=22,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "shadow_stack_ctl",
+                bits_range: 23..=23,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "single_context_invept",
+                bits_range: 25..=25,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "all_context_invept",
+                bits_range: 26..=26,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "invvpid",
+                bits_range: 32..=32,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "individual_address_invvpid",
+                bits_range: 40..=40,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "single_context_invvpid",
+                bits_range: 41..=41,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "all_context_invvpid",
+                bits_range: 42..=42,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "single_context_retaining_globals_invvpid",
+                bits_range: 43..=43,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "max_hlat_prefix",
+                bits_range: 48..=53,
                 policy: ProfilePolicy::Inherit,
                 vendors: &[CpuVendor::Intel],
             },
