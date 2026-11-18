@@ -1,4 +1,5 @@
 pub mod cpuid;
+pub mod msrs;
 
 use std::ops::{BitAnd, BitOr, RangeInclusive, Shl};
 
