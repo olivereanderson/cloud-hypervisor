@@ -3,7 +3,7 @@ use hypervisor::arch::x86::msr_index::{
     MSR_IA32_UCODE_REV, MSR_IA32_VMX_BASIC, MSR_IA32_VMX_CR0_FIXED0, MSR_IA32_VMX_CR4_FIXED0,
     MSR_IA32_VMX_EPT_VPID_CAP, MSR_IA32_VMX_MISC, MSR_IA32_VMX_PROCBASED_CTLS2,
     MSR_IA32_VMX_TRUE_ENTRY_CTLS, MSR_IA32_VMX_TRUE_EXIT_CTLS, MSR_IA32_VMX_TRUE_PINBASED_CTLS,
-    MSR_IA32_VMX_TRUE_PROCBASED_CTLS, MSR_IA32_VMX_VMCS_ENUM,
+    MSR_IA32_VMX_TRUE_PROCBASED_CTLS, MSR_IA32_VMX_VMCS_ENUM, MSR_IA32_VMX_VMFUNC,
 };
 
 use super::{ProfilePolicy, ValueDefinition};
@@ -1982,6 +1982,23 @@ pub static FEATURE_MSR_DEFINITIONS: &[(u32, &[ValueDefinition])] = &[
             ValueDefinition {
                 name: "max_hlat_prefix",
                 bits_range: 48..=53,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+        ],
+    ),
+    (
+        MSR_IA32_VMX_VMFUNC,
+        &[
+            ValueDefinition {
+                name: "allowed_one_eptp_switching",
+                bits_range: 0..=0,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "allowed_one_1_63",
+                bits_range: 1..=63,
                 policy: ProfilePolicy::Inherit,
                 vendors: &[CpuVendor::Intel],
             },
