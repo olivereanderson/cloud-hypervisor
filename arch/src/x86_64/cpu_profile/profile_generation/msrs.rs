@@ -1,8 +1,8 @@
 use hypervisor::CpuVendor;
 use hypervisor::arch::x86::msr_index::{
-    MSR_IA32_UCODE_REV, MSR_IA32_VMX_BASIC, MSR_IA32_VMX_CR0_FIXED0, MSR_IA32_VMX_MISC,
-    MSR_IA32_VMX_TRUE_ENTRY_CTLS, MSR_IA32_VMX_TRUE_EXIT_CTLS, MSR_IA32_VMX_TRUE_PINBASED_CTLS,
-    MSR_IA32_VMX_TRUE_PROCBASED_CTLS,
+    MSR_IA32_UCODE_REV, MSR_IA32_VMX_BASIC, MSR_IA32_VMX_CR0_FIXED0, MSR_IA32_VMX_CR4_FIXED0,
+    MSR_IA32_VMX_MISC, MSR_IA32_VMX_TRUE_ENTRY_CTLS, MSR_IA32_VMX_TRUE_EXIT_CTLS,
+    MSR_IA32_VMX_TRUE_PINBASED_CTLS, MSR_IA32_VMX_TRUE_PROCBASED_CTLS,
 };
 
 use super::ProfilePolicy;
@@ -1335,6 +1335,161 @@ pub static FEATURE_MSR_DEFINITIONS: &[(u32, &[ValueDefinition])] = &[
             ValueDefinition {
                 name: "ia32_vmx_cr0_fixed1_reserved_32_63",
                 bits_range: 32..=63,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+        ],
+    ),
+    (
+        MSR_IA32_VMX_CR4_FIXED0,
+        &[
+            ValueDefinition {
+                name: "cr4.vme",
+                bits_range: 0..=0,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.pvi",
+                bits_range: 1..=1,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.tsd",
+                bits_range: 2..=2,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.de",
+                bits_range: 3..=3,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.pse",
+                bits_range: 4..=4,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.pae",
+                bits_range: 5..=5,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.mce",
+                bits_range: 6..=6,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.pge",
+                bits_range: 7..=7,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.osfxsr",
+                bits_range: 9..=9,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.osxmmexcpt",
+                bits_range: 10..=10,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.umip",
+                bits_range: 11..=11,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.la57",
+                bits_range: 12..=12,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.vmxe",
+                bits_range: 13..=13,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.reserved_15",
+                bits_range: 15..=15,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.fsgsbase",
+                bits_range: 16..=16,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.pcide",
+                bits_range: 17..=17,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.osxsave",
+                bits_range: 18..=18,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.smep",
+                bits_range: 20..=20,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.smap",
+                bits_range: 21..=21,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.pke",
+                bits_range: 22..=22,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.cet",
+                bits_range: 23..=23,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.reserved_26",
+                bits_range: 26..=26,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.lass",
+                bits_range: 27..=27,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "cr4.lam_sup",
+                bits_range: 28..=28,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "ia32_vmx_cr4_fixed0",
+                bits_range: 29..=63,
                 policy: ProfilePolicy::Inherit,
                 vendors: &[CpuVendor::Intel],
             },
