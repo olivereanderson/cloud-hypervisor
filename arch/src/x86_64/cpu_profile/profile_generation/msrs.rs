@@ -2,7 +2,7 @@ use hypervisor::CpuVendor;
 use hypervisor::arch::x86::msr_index::{
     MSR_IA32_UCODE_REV, MSR_IA32_VMX_BASIC, MSR_IA32_VMX_CR0_FIXED0, MSR_IA32_VMX_CR4_FIXED0,
     MSR_IA32_VMX_MISC, MSR_IA32_VMX_TRUE_ENTRY_CTLS, MSR_IA32_VMX_TRUE_EXIT_CTLS,
-    MSR_IA32_VMX_TRUE_PINBASED_CTLS, MSR_IA32_VMX_TRUE_PROCBASED_CTLS,
+    MSR_IA32_VMX_TRUE_PINBASED_CTLS, MSR_IA32_VMX_TRUE_PROCBASED_CTLS, MSR_IA32_VMX_VMCS_ENUM,
 };
 
 use super::ProfilePolicy;
@@ -1494,5 +1494,14 @@ pub static FEATURE_MSR_DEFINITIONS: &[(u32, &[ValueDefinition])] = &[
                 vendors: &[CpuVendor::Intel],
             },
         ],
+    ),
+    (
+        MSR_IA32_VMX_VMCS_ENUM,
+        &[ValueDefinition {
+            name: "max_index",
+            bits_range: 1..=9,
+            policy: ProfilePolicy::Inherit,
+            vendors: &[CpuVendor::Intel],
+        }],
     ),
 ];
