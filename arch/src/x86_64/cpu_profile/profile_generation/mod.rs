@@ -3,6 +3,7 @@ use std::ops::RangeInclusive;
 use hypervisor::CpuVendor;
 
 pub mod cpuid;
+pub mod msrs;
 
 /// Describes a policy for how a given range of bits within a CPUID output register or
 /// feature MSR should be recorded when the CPU profile is generated.
