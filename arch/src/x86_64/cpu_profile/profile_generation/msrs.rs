@@ -1,6 +1,6 @@
 use hypervisor::CpuVendor;
 use hypervisor::arch::x86::msr_index::{
-    MSR_IA32_UCODE_REV, MSR_IA32_VMX_BASIC, MSR_IA32_VMX_TRUE_ENTRY_CTLS,
+    MSR_IA32_UCODE_REV, MSR_IA32_VMX_BASIC, MSR_IA32_VMX_MISC, MSR_IA32_VMX_TRUE_ENTRY_CTLS,
     MSR_IA32_VMX_TRUE_EXIT_CTLS, MSR_IA32_VMX_TRUE_PINBASED_CTLS, MSR_IA32_VMX_TRUE_PROCBASED_CTLS,
 };
 
@@ -1174,6 +1174,71 @@ pub static FEATURE_MSR_DEFINITIONS: &[(u32, &[ValueDefinition])] = &[
             ValueDefinition {
                 name: "allowed_one_26_31",
                 bits_range: 58..=63,
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+        ],
+    ),
+    (
+        MSR_IA32_VMX_MISC,
+        &[
+            ValueDefinition {
+                name: "VMX_PREEMPTION_TSC_REL",
+                bits_range: (0..=4),
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "IA32_EFER.LMA_STORE",
+                bits_range: (5..=5),
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "HLT_STATE",
+                bits_range: (6..=6),
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "SHUTDOWN_STATE",
+                bits_range: (7..=7),
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "WAIT_FOR_SIPI__STATE",
+                bits_range: (8..=8),
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "VMX_NUM_CR3",
+                bits_range: (16..=24),
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "MAX_MSR_STORE_LISTS",
+                bits_range: (25..=27),
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "VM_WRITE_EXIT_FIELDS",
+                bits_range: (29..=29),
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "VM_ENTRY_INJECTION",
+                bits_range: (30..=30),
+                policy: ProfilePolicy::Inherit,
+                vendors: &[CpuVendor::Intel],
+            },
+            ValueDefinition {
+                name: "MSEG_REV_ID",
+                bits_range: 32..=63,
                 policy: ProfilePolicy::Inherit,
                 vendors: &[CpuVendor::Intel],
             },
