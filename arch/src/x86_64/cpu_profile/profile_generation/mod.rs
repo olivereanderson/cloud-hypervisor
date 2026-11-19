@@ -1,3 +1,5 @@
+pub mod cpuid;
+
 use std::ops::RangeInclusive;
 
 use hypervisor::CpuVendor;
