@@ -1,6 +1,6 @@
 pub mod cpuid;
 
-use std::ops::RangeInclusive;
+use std::ops::{BitAnd, BitOr, RangeInclusive, Shl};
 
 use hypervisor::CpuVendor;
 
@@ -29,4 +29,52 @@ pub struct ValueDefinition<T: Copy> {
     pub policy: ProfilePolicy<T>,
     // The CPU vendors that have documented this value.
     pub vendors: &'static [CpuVendor],
+}
+
+impl<T: Copy + PartialEq + Eq> ValueDefinition<T> {
+    fn mask(definitions: &[Self], vendor: CpuVendor) -> Option<T>
+    where
+        T: Shl<u8, Output = T>,
+        T: BitOr<Output = T>,
+        T: From<u8>,
+    {
+        definitions
+            .iter()
+            .filter_map(|def| {
+                (def.policy == ProfilePolicy::Passthrough && def.vendors.contains(&vendor))
+                    .then_some(&def.bits_range)
+                    .map(bit_range_mask)
+            })
+            .reduce(|acc, next| acc | next)
+    }
+
+    fn replacements(definitions: &[Self], value: T, vendor: CpuVendor) -> T
+    where
+        T: Shl<u8, Output = T>,
+        T: BitOr<Output = T>,
+        T: From<u8>,
+        T: BitAnd<Output = T>,
+    {
+        definitions
+            .iter()
+            .filter_map(|def| {
+                def.vendors.contains(&vendor).then_some(match def.policy {
+                    ProfilePolicy::Inherit => value & bit_range_mask::<T>(&def.bits_range),
+                    ProfilePolicy::Static(overwrite_value) => {
+                        overwrite_value << *def.bits_range.start()
+                    }
+                    ProfilePolicy::Passthrough => T::from(0_u8),
+                })
+            })
+            .fold(T::from(0_u8), |acc, partial_value| acc | partial_value)
+    }
+}
+
+fn bit_range_mask<T>(range: &RangeInclusive<u8>) -> T
+where
+    T: Shl<u8, Output = T>,
+    T: BitOr<Output = T>,
+    T: From<u8>,
+{
+    (range.clone()).fold(T::from(0_u8), |acc, next| acc | ((T::from(1_u8)) << next))
 }
