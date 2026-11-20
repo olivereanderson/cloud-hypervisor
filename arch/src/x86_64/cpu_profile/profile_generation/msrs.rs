@@ -1,6 +1,6 @@
 use std::ops::RangeInclusive;
 
-use hypervisor::CpuVendor;
+use hypervisor::arch::x86::MsrEntry;
 use hypervisor::arch::x86::msr_index::{
     MSR_CORE_PERF_FIXED_CTR0, MSR_CORE_PERF_GLOBAL_CTRL, MSR_F15H_PERF_CTL, MSR_F15H_PERF_CTR,
     MSR_IA32_BNDCFGS, MSR_IA32_DS_AREA, MSR_IA32_PEBS_ENABLE, MSR_IA32_PERF_CAPABILITIES,
@@ -12,8 +12,12 @@ use hypervisor::arch::x86::msr_index::{
     MSR_IA32_VMX_TRUE_PROCBASED_CTLS, MSR_IA32_VMX_VMCS_ENUM, MSR_IA32_VMX_VMFUNC, MSR_K7_EVNTSEL0,
     MSR_K7_PERFCTR3, MSR_P6_EVNTSEL0,
 };
+use hypervisor::{CpuVendor, Hypervisor};
 
 use super::ProfilePolicy;
+use crate::x86_64::cpu_profile::msr_adjustments::{
+    FeatureMsrAdjustment, MsrProfileData, RegisterAddress,
+};
 
 type ValueDefinition = super::ValueDefinition<u64>;
 
@@ -2069,3 +2073,61 @@ static NON_REQUIRED_MSRS_AMD: &[RangeInclusive<u32>] = &[
     MSR_K7_EVNTSEL0..=MSR_K7_PERFCTR3,
     MSR_F15H_PERF_CTL..=MSR_F15H_PERF_CTR5,
 ];
+
+pub(super) fn generate_msrs_profile_data_with(
+    feature_msrs: &[MsrEntry],
+    supported_msr_indices: &[u32],
+    vendor: CpuVendor,
+) -> MsrProfileData {
+    let mut adjustments = Vec::new();
+    let mut required_msrs = Vec::new();
+
+    for (msr_index, value_defs) in FEATURE_MSR_DEFINITIONS {
+        let Some(feature_msr_value) = feature_msrs
+            .iter()
+            .find_map(|entry| (entry.index == *msr_index).then_some(entry.data))
+        else {
+            continue;
+        };
+
+        required_msrs.push(*msr_index);
+
+        let mask = ValueDefinition::mask(value_defs, vendor).unwrap_or(0);
+        let replacements = ValueDefinition::replacements(value_defs, feature_msr_value, vendor);
+
+        adjustments.push((
+            RegisterAddress(*msr_index),
+            FeatureMsrAdjustment { replacements, mask },
+        ));
+    }
+
+    let non_required_msrs: Vec<&RangeInclusive<u32>> = NON_REQUIRED_MSRS_COMMON
+        .into_iter()
+        .chain(match vendor {
+            CpuVendor::Intel => NON_REQUIRED_MSRS_INTEL,
+            CpuVendor::AMD => NON_REQUIRED_MSRS_AMD,
+            _ => &[],
+        })
+        .collect();
+
+    for msr_index in supported_msr_indices {
+        if non_required_msrs
+            .iter()
+            .any(|range| range.contains(msr_index))
+        {
+            continue;
+        }
+        required_msrs.push(*msr_index);
+    }
+
+    required_msrs.sort();
+    required_msrs.dedup();
+
+    let required_msrs: Vec<RegisterAddress> =
+        required_msrs.into_iter().map(RegisterAddress).collect();
+
+    MsrProfileData {
+        adjustments,
+        required_msrs,
+    }
+}
