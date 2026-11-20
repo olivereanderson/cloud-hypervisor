@@ -3,7 +3,13 @@ pub mod msrs;
 
 use std::ops::{BitAnd, BitOr, RangeInclusive, Shl};
 
-use hypervisor::CpuVendor;
+use hypervisor::{
+    CpuVendor, Hypervisor, HypervisorError,
+    arch::x86::{CpuIdEntry, MsrEntry},
+};
+use thiserror::Error;
+
+use crate::x86_64::cpu_profile::CpuProfile;
 
 pub const AMD_AND_INTEL: &[CpuVendor] = &[CpuVendor::AMD, CpuVendor::Intel];
 
@@ -78,4 +84,71 @@ where
     T: From<u8>,
 {
     (range.clone()).fold(T::from(0_u8), |acc, next| acc | ((T::from(1_u8)) << next))
+}
+
+fn generate_cpu_profile_with(
+    supported_cpuid: Vec<CpuIdEntry>,
+    supported_feature_msrs: &[MsrEntry],
+    supported_msr_index_list: &[u32],
+    vendor: CpuVendor,
+) -> CpuProfile {
+    CpuProfile {
+        cpuid: cpuid::generate_cpuid_profile_data_with(supported_cpuid, vendor),
+        msr: msrs::generate_msrs_profile_data_with(
+            supported_feature_msrs,
+            supported_msr_index_list,
+            vendor,
+        ),
+    }
+}
+
+#[derive(Error, Debug)]
+#[error("Failed to generate CPU Profile")]
+pub struct CpuProfileGenerationError(#[source] pub HypervisorError);
+
+/// Get as many of the supported CPUID entries from the hypervisor as possible.
+fn supported_cpuid(hypervisor: &dyn Hypervisor) -> Result<Vec<CpuIdEntry>, HypervisorError> {
+    // Try enabling AMX before querying the hypervisor for CPUID.
+    hypervisor.enable_amx_state_components().or_else(|e| {
+        if let HypervisorError::CouldNotEnableAmxStateComponents(amx_err) = &e
+            && !matches!(
+                amx_err,
+                hypervisor::arch::x86::AmxGuestSupportError::AmxGuestTileRequest { .. }
+            )
+        {
+            // AMX is not supported on the host so we do not need to enable it
+            Ok(())
+        } else {
+            Err(e)
+        }
+    })?;
+    hypervisor.get_supported_cpuid()
+}
+
+pub fn generate_cpu_profile(
+    hypervisor: &dyn Hypervisor,
+) -> Result<CpuProfile, CpuProfileGenerationError> {
+    let cpuid = supported_cpuid(hypervisor).map_err(CpuProfileGenerationError)?;
+    let feature_msrs = hypervisor
+        .get_feature_msrs()
+        .map_err(CpuProfileGenerationError)?;
+    let msr_index_list = hypervisor
+        .get_msr_index_list()
+        .map_err(CpuProfileGenerationError)?;
+    let vendor = hypervisor.get_cpu_vendor();
+
+    Ok(generate_cpu_profile_with(
+        cpuid,
+        &feature_msrs,
+        &msr_index_list,
+        vendor,
+    ))
+}
+
+#[cfg(test)]
+mod unit_tests {
+    #[test]
+    fn check_profile_generation() {
+        todo!()
+    }
 }
