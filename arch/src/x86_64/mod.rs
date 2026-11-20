@@ -38,6 +38,7 @@ use vm_memory::{
 use crate::smbios::SmbiosConfig;
 use crate::x86_64::cpu_profile::CpuProfile;
 use crate::x86_64::cpu_profile::cpuid_adjustments::MissingCpuidEntriesError;
+pub use crate::x86_64::cpu_profile::profile_generation::generate_cpu_profile;
 use crate::{InitramfsConfig, RegionType, smbios};
 
 // While modern architectures support more than 255 CPUs via x2APIC,
@@ -184,6 +185,9 @@ pub enum Error {
 
     #[error("Custom CPU profiles are not supported by {0:?}")]
     CpuProfileUnsupportedHypervisor(hypervisor::HypervisorType),
+
+    #[error("Failed to generate CPU profile")]
+    GenerateCpuProfile(#[source] HypervisorError),
 
     // Error writing EBDA address
     #[error("Error writing EBDA address")]
