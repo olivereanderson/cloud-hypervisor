@@ -12,6 +12,7 @@ version = "56.0.0"
 
 [dependencies]
 api_client = { path = "../api_client" }
+arch = { path = "../arch" }
 clap = { workspace = true, features = [
   "color",
   "derive",

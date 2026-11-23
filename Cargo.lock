@@ -450,6 +450,7 @@ name = "cloud-hypervisor"
 version = "56.0.0"
 dependencies = [
  "api_client",
+ "arch",
  "block",
  "clap",
  "dhat",

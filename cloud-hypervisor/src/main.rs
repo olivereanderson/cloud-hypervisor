@@ -9,9 +9,7 @@ mod test_util;
 
 use std::fs::{self, File};
 use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
-use std::path::Path;
-#[cfg(feature = "guest_debug")]
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::ptr::from_ref;
 use std::sync::mpsc::channel;
 use std::{any, cmp, env, io, num, process};
@@ -152,6 +150,19 @@ enum Error {
     CreateExitEventFd(#[source] io::Error),
     #[error("Failed to open hypervisor interface (is hypervisor interface available?)")]
     CreateHypervisor(#[source] hypervisor::HypervisorError),
+    #[cfg(target_arch = "x86_64")]
+    #[error("Failed to generate CPU profile")]
+    GenerateCpuProfile(#[source] arch::x86_64::Error),
+    #[cfg(target_arch = "x86_64")]
+    #[error("Failed to serialize CPU profile")]
+    SerializeCpuProfile(#[source] serde_json::Error),
+    #[cfg(target_arch = "x86_64")]
+    #[error("Failed to write the genrated CPU profile")]
+    WriteCpuProfile {
+        #[source]
+        error: io::Error,
+        file_path: PathBuf,
+    },
     #[error("Failed to create main thread seccomp filter")]
     CreateSeccompFilter(#[source] seccompiler::Error),
     #[error("Failed to apply main thread seccomp filter")]
@@ -412,6 +423,13 @@ struct Cli {
         group = "vmm-config"
     )]
     gdb: Option<String>,
+    #[cfg(target_arch = "x86_64")]
+    #[arg(
+        long,
+        help = "Write a CPU profile compatible with this host as JSON to the given file and exit",
+        num_args = 1..,
+    )]
+    generate_cpu_profile: Option<String>,
     #[arg(
         long,
         help = GenericVhostUserConfig::SYNTAX,
@@ -863,6 +881,7 @@ fn start_vmm(
     info!("{} starting", env!("BUILD_VERSION"));
 
     let hypervisor = hypervisor::new().map_err(Error::CreateHypervisor)?;
+
     let main_seccomp_filter = get_seccomp_filter(&seccomp_action, Thread::Main, None)
         .map_err(Error::CreateSeccompFilter)?;
 
@@ -1126,6 +1145,19 @@ fn expand_fdtable() -> Result<(), FdTableError> {
     Ok(())
 }
 
+fn generate_cpu_profile(file_path: &str) -> Result<(), Error> {
+    let hypervisor = hypervisor::new().map_err(Error::CreateHypervisor)?;
+    let profile = arch::x86_64::generate_cpu_profile(hypervisor.as_ref())
+        .map_err(Error::GenerateCpuProfile)?;
+    let mut contents =
+        serde_json::to_string_pretty(&profile).map_err(Error::SerializeCpuProfile)?;
+    contents.push('\n');
+    std::fs::write(file_path, contents).map_err(|error| Error::WriteCpuProfile {
+        error,
+        file_path: file_path.into(),
+    })
+}
+
 fn main() {
     #[cfg(all(feature = "sev_snp", not(target_arch = "x86_64")))]
     compile_error!("Feature 'sev_snp' needs target 'x86_64'");
@@ -1151,6 +1183,22 @@ fn main() {
         }
 
         return;
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    if let Some(file_path) = &cmd_arguments.generate_cpu_profile {
+        let exit_code = match generate_cpu_profile(file_path) {
+            Ok(()) => 0,
+            Err(top_error) => {
+                cloud_hypervisor::cli_print_error_chain(
+                    &top_error,
+                    "Cloud Hypervisor",
+                    |_, _, _| None,
+                );
+                1
+            }
+        };
+        process::exit(exit_code);
     }
 
     let (api_socket_path, api_socket_fd) = match parse_api_socket(&cmd_arguments) {
